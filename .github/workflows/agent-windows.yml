@@ -23,7 +23,7 @@ jobs:
         working-directory: apps/agent
         env:
           NODE_ENV: production
-          RASED_SERVER_URL: ${{ vars.RASED_SERVER_URL || 'http://localhost:3000' }}
+          RASED_SERVER_URL: ${{ vars.RASED_SERVER_URL || 'https://rased.pixelcodes.net' }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm dist:win
       - uses: actions/upload-artifact@v4
