@@ -65,7 +65,7 @@ Also design the "إضافة موظف" side drawer/modal with sections: البي�
 Employee detail page (Arabic RTL) for "أحمد محمود — مصمم UI". Header: avatar, name, status badge, date picker (day navigation arrows), tabs: "اليوم" (active) / "النشاط والبرامج" / "المهام" / "الحضور الشهري" / "الإجازات" / "المرتب".
 KPI row: "ساعات العمل 6:45 من 8:00", "نسبة النشاط 72%", "الإنتاجية 81%", "وقت الخمول 0:35 (غير محسوب)", "الاستراحات 0:45".
 Horizontal day timeline (8 ص → 12 م) showing colored segments: working (green), break (amber), idle (orange, hatched, labeled "غير محسوب"), web-only session (blue striped), with check-in/out markers and hover tooltip.
-Screenshots grid grouped by hour ("10:00 ص – 11:00 ص"): 6 thumbnails per hour row, each with time, app icon + app name, a 10-segment activity bar and %, and a badge for "مشوّشة" if blurred; a gray placeholder tile "حذفها الموظف — تم خصم 10 دقائق" for deleted ones; "لا يوجد نشاط" tile for idle periods.
+Screenshots grid grouped by hour ("10:00 ص – 11:00 ص"): 6 thumbnails per hour row, each with time, app icon + app name, a 10-segment activity bar and %, and a badge for "مشوّشة" if blurred; "لا يوجد نشاط" tile for idle periods.
 ```
 
 ### 5) عارض السكرين شوت
@@ -123,7 +123,7 @@ Settings page "الإعدادات" (Arabic RTL) with vertical tabs:
 6) "التنبيهات": toggles + thresholds for each alert type, daily summary email time (11:00 م) and recipient emails.
 7) "البريد الإلكتروني": SMTP settings (Gmail + App Password) with "إرسال بريد تجريبي".
 8) "Trello": connect card with API Key/Token, selected boards checklist, member ↔ employee mapping table, "مزامنة الآن".
-9) "سجل العمليات": audit log table (المستخدم، العملية، التفاصيل، الوقت) e.g. "حذف الموظف لقطة شاشة".
+9) "سجل العمليات": audit log table (المستخدم، العملية، التفاصيل، الوقت).
 ```
 
 ---
@@ -138,7 +138,7 @@ Greeting "صباح الخير يا أحمد 👋". Big card: today's status + la
 
 ### 14) نشاطي وسكرين شوتاتي
 ```
-Employee "نشاطي" page (Arabic RTL): same day timeline and screenshots grid as the admin view but for self. Each screenshot has a trash icon "حذف"; clicking opens confirmation dialog: "هل تريد حذف هذه اللقطة؟ سيتم خصم 10 دقائق (10:20 – 10:30) من ساعات عملك. لا يمكن التراجع." buttons "حذف وخصم الوقت" (danger) / "إلغاء". Also show apps/websites summary and idle periods marked "غير محسوب".
+Employee "نشاطي" page (Arabic RTL): same day timeline and screenshots grid as the admin view but for self, view-only (no delete). Also show apps/websites summary and idle periods marked "غير محسوب".
 ```
 
 ### 15) إجازاتي + كشف المرتب
