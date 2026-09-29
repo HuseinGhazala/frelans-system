@@ -40,10 +40,19 @@ model User {
   alerts       Alert[]
 }
 
+/// نظام عمل الموظف
+enum WorkMode {
+  /// بالساعات: ساعات يومية مطلوبة + حضور ومراقبة + خصم/إضافي بالساعة
+  HOURS
+  /// بالتاسكات: من غير حضور ولا مراقبة، بيتقيّم بتسليم كروت Trello
+  TASKS
+}
+
 /// إعدادات الموظف. الحقول الاختيارية الفاضية بتاخد القيمة من الإعدادات العامة.
 model EmployeeProfile {
   userId                String   @id
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workMode              WorkMode @default(HOURS)
   monthlySalary         Decimal  @db.Decimal(12, 2)
   dailyHours            Decimal  @default(8) @db.Decimal(4, 2)
   screenshotIntervalMin Int?
@@ -215,6 +224,7 @@ model TrelloCard {
   id           String      @id
   boardId      String
   board        TrelloBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  listId       String      @default("")
   listName     String
   name         String
   url          String
@@ -222,6 +232,8 @@ model TrelloCard {
   due          DateTime?
   memberIds    String[]
   lastActivity DateTime?
+  /// وقت ما الكارت اتنقل لليست "خلصت" (تقريبي: آخر نشاط على الكارت)
+  completedAt  DateTime?
   syncedAt     DateTime    @default(now())
 
   @@index([boardId])
@@ -345,6 +357,9 @@ model PayrollItem {
   overtimePay           Decimal       @db.Decimal(12, 2)
   /// [{ kind: "BONUS" | "DEDUCTION", amount, reason }]
   adjustments           Json          @default("[]")
+  workMode              WorkMode      @default(HOURS)
+  /// لموظفين التاسكات: التاسكات المتأخرة في الشهر (للمراجعة قبل الخصم اليدوي)
+  lateTasks             Json          @default("[]")
   net                   Decimal       @db.Decimal(12, 2)
   updatedAt             DateTime      @updatedAt
 
@@ -357,6 +372,7 @@ enum AlertType {
   LONG_IDLE
   LOW_PRODUCTIVITY
   LEAVE_REQUEST
+  TASK_OVERDUE
 }
 
 /// تنبيه للأدمن

@@ -22,6 +22,8 @@ export async function POST(request: Request) {
     return jsonError("البريد الإلكتروني أو كلمة المرور غير صحيحة", 401);
   }
   if (user.role !== "EMPLOYEE") return jsonError("البرنامج للموظفين بس. المدير يستخدم الموقع.", 403);
+  const profile = await db.employeeProfile.findUnique({ where: { userId: user.id }, select: { workMode: true } });
+  if (profile?.workMode === "TASKS") return jsonError("حسابك بنظام التاسكات — مش محتاج البرنامج. تابع تاسكاتك من الموقع.", 403);
   clearFailures(key);
 
   const token = newToken();

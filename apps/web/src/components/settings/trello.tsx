@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { chooseTrelloBoards, connectTrello, disconnectTrello, syncTrelloNow } from "@/app/actions/trello";
+import { chooseDoneLists, chooseTrelloBoards, connectTrello, disconnectTrello, syncTrelloNow } from "@/app/actions/trello";
 import type { ActionState } from "@/app/actions/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -16,6 +16,8 @@ export function TrelloSettings({
   selected,
   boardsError,
   lastSync,
+  listNames,
+  doneLists,
 }: {
   apiKey: string;
   hasToken: boolean;
@@ -23,7 +25,10 @@ export function TrelloSettings({
   selected: string[];
   boardsError: string | null;
   lastSync: string | null;
+  listNames: string[];
+  doneLists: string[];
 }) {
+  const [doneState, saveDone, savingDone] = useFormAction(chooseDoneLists);
   const [connState, connect, connecting] = useFormAction(connectTrello);
   const [boardState, saveBoards, saving] = useFormAction(chooseTrelloBoards);
   const [syncState, setSyncState] = useState<ActionState>(null);
@@ -83,6 +88,24 @@ export function TrelloSettings({
               <FormMessage state={syncState} />
             </form>
           )}
+        </Card>
+      )}
+
+      {connected && selected.length > 0 && listNames.length > 0 && (
+        <Card>
+          <CardHeader title="ليستات التسليم" description="لموظفين نظام التاسكات: الكارت لما يتنقل لليست من دول يتحسب اتسلّم، ولو بعد ميعاد التسليم (Due) يتعلّم متأخر." />
+          <form onSubmit={saveDone} className="space-y-4 p-5">
+            <div className="grid gap-2 sm:grid-cols-3">
+              {listNames.map((n) => (
+                <label key={n} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-surface-2">
+                  <input type="checkbox" name="doneLists" value={n} defaultChecked={doneLists.some((d) => d.trim().toLowerCase() === n.trim().toLowerCase())} className="h-4 w-4 accent-[var(--primary)]" />
+                  <span dir="auto">{n}</span>
+                </label>
+              ))}
+            </div>
+            <FormMessage state={doneState} />
+            <Button type="submit" disabled={savingDone}>حفظ</Button>
+          </form>
         </Card>
       )}
     </div>

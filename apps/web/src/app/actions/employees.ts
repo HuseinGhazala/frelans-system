@@ -32,6 +32,7 @@ const employeeSchema = z.object({
   idleThresholdMin: optionalInt(1, 60),
   blurScreenshots: z.enum(["default", "on", "off"]).default("default"),
   trelloMemberId: z.string().max(64).optional(),
+  workMode: z.enum(["HOURS", "TASKS"]).default("HOURS"),
 });
 
 function parseEmployee(formData: FormData) {
@@ -40,6 +41,7 @@ function parseEmployee(formData: FormData) {
 
 function profileData(d: z.infer<typeof employeeSchema>) {
   return {
+    workMode: d.workMode,
     monthlySalary: d.monthlySalary,
     dailyHours: d.dailyHours,
     annualLeaveDays: d.annualLeaveDays,
@@ -68,6 +70,7 @@ export async function createEmployee(_: ActionState, formData: FormData): Promis
   const parsed = parseEmployee(formData);
   if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
   const d = parsed.data;
+  if (d.workMode === "TASKS" && d.trelloMemberId === "") return { fieldErrors: { trelloMemberId: ["اختار عضوية Trello — نظام التاسكات محتاجها"] } };
   if (await db.user.findUnique({ where: { email: d.email } })) return { fieldErrors: { email: ["البريد ده مستخدم لموظف تاني"] } };
 
   const user = await db.user.create({
@@ -94,6 +97,7 @@ export async function updateEmployee(userId: string, _: ActionState, formData: F
   const parsed = parseEmployee(formData);
   if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
   const d = parsed.data;
+  if (d.workMode === "TASKS" && d.trelloMemberId === "") return { fieldErrors: { trelloMemberId: ["اختار عضوية Trello — نظام التاسكات محتاجها"] } };
   const clash = await db.user.findUnique({ where: { email: d.email } });
   if (clash && clash.id !== userId) return { fieldErrors: { email: ["البريد ده مستخدم لموظف تاني"] } };
 
@@ -108,7 +112,11 @@ export async function updateEmployee(userId: string, _: ActionState, formData: F
       profile: { upsert: { create: profileData(d), update: profileData(d) } },
     },
   });
-  await audit(admin.id, "employee.updated", { type: "user", id: userId });
+  await audit(admin.id, "employee.updated", { type: "user", id: userId }, { workMode: d.workMode });
+  // لو اتحول لنظام التاسكات: نقفل أي جلسة حضور مفتوحة
+  if (d.workMode === "TASKS") {
+    await db.workSession.updateMany({ where: { userId, endedAt: null }, data: { endedAt: new Date(), endReason: "MANUAL" } });
+  }
   revalidatePath("/admin/employees");
   revalidatePath(`/admin/employees/${userId}`);
   return { success: "تم حفظ التعديلات" };

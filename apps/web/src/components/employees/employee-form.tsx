@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormAction } from "@/components/ui/use-form-action";
+import { useState } from "react";
 import Link from "next/link";
 import type { ActionState } from "@/app/actions/types";
 import { Button, buttonClass } from "@/components/ui/button";
@@ -23,6 +24,7 @@ export type EmployeeFormValues = {
   idleThresholdMin: string;
   blurScreenshots: "default" | "on" | "off";
   trelloMemberId: string;
+  workMode: "HOURS" | "TASKS";
 };
 
 export function EmployeeForm({
@@ -41,6 +43,7 @@ export function EmployeeForm({
   trelloMembers?: { id: string; fullName: string; username: string }[];
 }) {
   const [state, formAction, pending] = useFormAction(action);
+  const [mode, setMode] = useState(defaults.workMode);
   const e = state?.fieldErrors ?? {};
   if (state?.link && state.id) {
     return (
@@ -80,12 +83,31 @@ export function EmployeeForm({
       </Card>
 
       <Card>
-        <CardHeader title="العمل والمرتب" description="الخصم والإضافي بيتحسبوا بالساعة من المرتب الشهري" />
+        <CardHeader title="نظام العمل والمرتب" />
         <div className="grid gap-4 p-5 sm:grid-cols-2">
+          <fieldset className="sm:col-span-2">
+            <legend className="mb-2 text-sm font-medium">نظام العمل</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(
+                [
+                  ["HOURS", "بالساعات", "ساعات يومية مطلوبة، حضور وانصراف ومراقبة من البرنامج، والخصم والإضافي بالساعة"],
+                  ["TASKS", "بالتاسكات", "من غير حضور ولا مراقبة — بيتقيّم بتسليم كروت Trello في ميعادها، ومرتب ثابت"],
+                ] as const
+              ).map(([v, label, hint]) => (
+                <label key={v} className={`cursor-pointer rounded-lg border p-3 ${mode === v ? "border-primary bg-primary-soft" : "border-border hover:bg-surface-2"}`}>
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <input type="radio" name="workMode" value={v} checked={mode === v} onChange={() => setMode(v)} className="accent-[var(--primary)]" />
+                    {label}
+                  </span>
+                  <span className="mt-1 block text-xs text-muted">{hint}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <Field label={`المرتب الشهري (${currency})`} htmlFor="monthlySalary" error={e.monthlySalary}>
             <Input id="monthlySalary" name="monthlySalary" type="number" min={0} step="0.01" dir="ltr" defaultValue={defaults.monthlySalary} required />
           </Field>
-          <Field label="عدد الساعات اليومية المطلوبة" htmlFor="dailyHours" error={e.dailyHours}>
+          <Field label="عدد الساعات اليومية المطلوبة" htmlFor="dailyHours" error={e.dailyHours} className={mode === "TASKS" ? "hidden" : undefined}>
             <Input id="dailyHours" name="dailyHours" type="number" min={1} max={24} step="0.5" dir="ltr" defaultValue={defaults.dailyHours} required />
           </Field>
           <Field label="رصيد الإجازات السنوية (يوم)" htmlFor="annualLeaveDays" error={e.annualLeaveDays}>
@@ -97,7 +119,7 @@ export function EmployeeForm({
         </div>
       </Card>
 
-      <Card>
+      <Card className={mode === "TASKS" ? "hidden" : undefined}>
         <CardHeader title="إعدادات المراقبة" description="سيبها فاضية عشان تاخد الإعدادات العامة" />
         <div className="grid gap-4 p-5 sm:grid-cols-3">
           <Field label="السكرين شوت كل (دقيقة)" htmlFor="screenshotIntervalMin" error={e.screenshotIntervalMin}>
@@ -116,11 +138,14 @@ export function EmployeeForm({
         </div>
       </Card>
 
+      {mode === "TASKS" && trelloMembers.length === 0 && (
+        <p className="rounded-lg bg-warning-soft px-4 py-3 text-sm text-warning">نظام التاسكات محتاج Trello — اربطه من الإعدادات ← Trello عشان تقدر تربط الموظف بعضويته.</p>
+      )}
       {trelloMembers.length > 0 && (
         <Card>
-          <CardHeader title="ربط Trello" description="عشان الكروت المسندة له تظهرله في البرنامج" />
+          <CardHeader title="ربط Trello" description={mode === "TASKS" ? "لازم عشان تسليم الكروت هو اللي بيتقيّم بيه" : "عشان الكروت المسندة له تظهرله في البرنامج"} />
           <div className="p-5">
-            <Field label="عضو Trello" htmlFor="trelloMemberId" className="max-w-sm">
+            <Field label="عضو Trello" htmlFor="trelloMemberId" className="max-w-sm" error={e.trelloMemberId}>
               <Select id="trelloMemberId" name="trelloMemberId" defaultValue={defaults.trelloMemberId}>
                 <option value="">— مش مربوط —</option>
                 {trelloMembers.map((m) => (

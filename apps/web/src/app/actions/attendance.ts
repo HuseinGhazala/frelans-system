@@ -19,6 +19,8 @@ function done(): ActionState {
 export async function checkIn(): Promise<ActionState> {
   const user = await requireEmployee();
   const settings = await getSettings();
+  const profile = await db.employeeProfile.findUnique({ where: { userId: user.id }, select: { workMode: true } });
+  if (profile?.workMode === "TASKS") return { error: "حسابك بنظام التاسكات — مفيش تسجيل حضور" };
   if (!settings.attendance.allowWebCheckIn) return { error: "تسجيل الحضور من الموقع متوقف. استخدم برنامج الديسكتوب." };
   if (await getOpenSession(user.id)) return { error: "انت مسجل حضور بالفعل" };
   try {

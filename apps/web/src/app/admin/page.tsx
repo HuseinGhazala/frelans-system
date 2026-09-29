@@ -7,7 +7,8 @@ import { Progress } from "@/components/ui/progress";
 import { db } from "@/lib/db";
 import { closeStaleAgentSessions, liveStatusOf, workedTodayByUser, type LiveStatus } from "@/lib/attendance";
 import { getSettings } from "@/lib/settings";
-import { formatDuration, HOUR_MS, toDateKey, weekdayOf } from "@/lib/time";
+import { addDays, daysInMonth, formatDuration, HOUR_MS, parseDateKey, startOfDay, toDateKey, weekdayOf } from "@/lib/time";
+import { deliveryStats, employeeDelivery } from "@/lib/delivery";
 
 export const metadata: Metadata = { title: "الرئيسية" };
 
@@ -23,7 +24,7 @@ export default async function AdminHome() {
 
   await closeStaleAgentSessions(now);
   const employees = await db.user.findMany({
-    where: { role: "EMPLOYEE", active: true },
+    where: { role: "EMPLOYEE", active: true, NOT: { profile: { is: { workMode: "TASKS" } } } },
     include: {
       profile: true,
       workSessions: { where: { endedAt: null }, include: { breaks: { where: { endedAt: null } }, device: true }, take: 1 },
@@ -31,6 +32,16 @@ export default async function AdminHome() {
     orderBy: { name: "asc" },
   });
   const worked = await workedTodayByUser(employees.map((e) => e.id), tz, now);
+  const taskStaff = await db.user.findMany({
+    where: { role: "EMPLOYEE", active: true, profile: { is: { workMode: "TASKS" } } },
+    select: { id: true, name: true, jobTitle: true },
+    orderBy: { name: "asc" },
+  });
+  const { year: y, month: m } = parseDateKey(todayKey);
+  const md = daysInMonth(y, m);
+  const taskRows = await Promise.all(
+    taskStaff.map(async (e) => ({ e, s: deliveryStats(await employeeDelivery(e.id, startOfDay(md[0], tz), startOfDay(addDays(md[md.length - 1], 1), tz), now)) })),
+  );
 
   const rows = employees.map((e) => {
     const open = e.workSessions[0];
@@ -96,6 +107,32 @@ export default async function AdminHome() {
             </Link>
           ))}
         </div>
+      )}
+      {taskRows.length > 0 && (
+        <>
+          <h2 className="mb-3 mt-8 font-semibold">موظفين نظام التاسكات — الشهر ده</h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {taskRows.map(({ e, s: st }) => (
+              <Link key={e.id} href={`/admin/employees/${e.id}`} className="block">
+                <Card className="h-full p-4 transition-shadow hover:shadow-md">
+                  <div className="flex items-start gap-3">
+                    <Avatar name={e.name} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{e.name}</p>
+                      <p className="truncate text-xs text-muted">{e.jobTitle ?? "—"}</p>
+                    </div>
+                    {st.overdue > 0 ? <Badge tone="danger">{st.overdue} متأخر</Badge> : <Badge tone="success">مفيش تأخير</Badge>}
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                    <div><p className="text-lg font-bold tabular-nums">{st.done}</p><p className="text-muted">اتسلّم</p></div>
+                    <div><p className="text-lg font-bold tabular-nums text-warning">{st.late}</p><p className="text-muted">اتسلّم متأخر</p></div>
+                    <div><p className="text-lg font-bold tabular-nums">{st.open}</p><p className="text-muted">شغال عليه</p></div>
+                  </div>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </>
       )}
     </>
   );

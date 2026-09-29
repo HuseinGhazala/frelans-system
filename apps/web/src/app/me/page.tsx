@@ -10,7 +10,9 @@ import { getOpenSession, liveStatusOf, monthSummary, workedTodayByUser } from "@
 import { requireEmployee } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { formatDuration, HOUR_MS, parseDateKey, toDateKey } from "@/lib/time";
+import { addDays, daysInMonth, formatDuration, HOUR_MS, parseDateKey, startOfDay, toDateKey } from "@/lib/time";
+import { DeliveryView } from "@/components/tasks/delivery-view";
+import { employeeDelivery } from "@/lib/delivery";
 
 export const metadata: Metadata = { title: "الرئيسية" };
 
@@ -24,6 +26,23 @@ export default async function EmployeeHome() {
   const tz = settings.general.timezone;
   const now = new Date();
   const { year, month } = parseDateKey(toDateKey(now, tz));
+  const mode = await db.employeeProfile.findUnique({ where: { userId: user.id }, select: { workMode: true, trelloMemberId: true } });
+  if (mode?.workMode === "TASKS") {
+    const days = daysInMonth(year, month);
+    const cards = await employeeDelivery(user.id, startOfDay(days[0], tz), startOfDay(addDays(days[days.length - 1], 1), tz), now);
+    const hourNow = Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));
+    return (
+      <>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold">
+            {greeting(hourNow)} يا {user.name.split(/\s+/)[0]} 👋
+          </h1>
+          <p className="mt-1 text-sm text-muted">نظام شغلك بالتاسكات — تاسكاتك الشهر ده من Trello. التسليم بيتحسب لما الكارت يتنقل لليست التسليم.</p>
+        </div>
+        <DeliveryView cards={cards} tz={tz} linked={Boolean(mode.trelloMemberId)} />
+      </>
+    );
+  }
   const [profile, open, today, summary, activity] = await Promise.all([
     db.employeeProfile.findUnique({ where: { userId: user.id } }),
     getOpenSession(user.id),
@@ -33,7 +52,7 @@ export default async function EmployeeHome() {
   ]);
   const status = liveStatusOf(open);
   const dailyMs = Number(profile?.dailyHours ?? settings.attendance.defaultDailyHours) * HOUR_MS;
-  const remaining = summary.requiredMs - summary.workedMs;
+  const remaining = summary.requiredMs - summary.workedMs - summary.paidLeaveMs;
   const hour = Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));
   const firstName = user.name.split(/\s+/)[0];
 

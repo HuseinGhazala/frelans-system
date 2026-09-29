@@ -8,7 +8,7 @@ import { buttonClass } from "@/components/ui/button";
 import { Card, EmptyState, PageHeader, StatCard } from "@/components/ui/card";
 import { Input } from "@/components/ui/field";
 import { db } from "@/lib/db";
-import { adjustmentsOf } from "@/lib/payroll";
+import { adjustmentsOf, lateTasksOf } from "@/lib/payroll";
 import { getSettings } from "@/lib/settings";
 import { toDateKey } from "@/lib/time";
 import { formatMoney } from "@/lib/utils";
@@ -30,6 +30,7 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
   const money = (v: unknown) => formatMoney(Number(v), cur);
   const sum = (k: "baseSalary" | "deduction" | "overtimePay" | "net") => period?.items.reduce((t, i) => t + Number(i[k]), 0) ?? 0;
   const pendingOvertime = period?.items.filter((i) => Number(i.surplusHours) > 0 && Number(i.approvedOvertimeHours) === 0).length ?? 0;
+  const lateTaskStaff = period?.items.filter((i) => i.workMode === "TASKS" && lateTasksOf(i).length > 0 && adjustmentsOf(i).length === 0).length ?? 0;
   const view = typeof sp.view === "string" ? period?.items.find((i) => i.id === sp.view) : undefined;
 
   if (view) {
@@ -87,6 +88,8 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
           <p className="mb-4 rounded-lg bg-info-soft px-4 py-3 text-sm text-info">
             الحساب شهري: الأيام الناقصة بتتعوض بالأيام الزيادة. الساعات الزيادة ما بتتحسبش إضافي إلا بعد موافقتك.
             {pendingOvertime > 0 && !locked && ` — في ${pendingOvertime} موظف عندهم إضافي مقترح مستني موافقتك.`}
+            {lateTaskStaff > 0 && !locked && ` — في ${lateTaskStaff} موظف تاسكات عندهم تسليمات متأخرة: حدد الخصم من عمود التعديلات.`}
+            {" "}موظفين التاسكات مرتبهم ثابت، والخصم على التأخير بتحدده انت.
           </p>
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
@@ -101,40 +104,60 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
                 <tbody className="divide-y divide-border align-top tabular-nums">
                   {period.items.map((i) => {
                     const adj = adjustmentsOf(i);
+                    const tasks = i.workMode === "TASKS";
+                    const late = lateTasksOf(i);
                     return (
                       <tr key={i.id}>
                         <td className="whitespace-nowrap px-3 py-3 font-medium">
-                          <Link href={`/admin/employees/${i.user.id}?tab=month`} className="hover:text-primary">{i.user.name}</Link>
+                          <Link href={`/admin/employees/${i.user.id}?tab=${tasks ? "tasks" : "month"}`} className="hover:text-primary">{i.user.name}</Link>
+                          {tasks && <p><Badge tone="info">بالتاسكات</Badge></p>}
                           {i.unpaidLeaveDays > 0 && <p className="text-xs text-danger">{i.unpaidLeaveDays} يوم بدون مرتب</p>}
                         </td>
                         <td className="px-3 py-3">
                           {money(i.monthlySalary)}
-                          <p className="text-xs text-muted">{Number(i.hourlyRate).toFixed(2)} / ساعة</p>
+                          {!tasks && <p className="text-xs text-muted">{Number(i.hourlyRate).toFixed(2)} / ساعة</p>}
                         </td>
-                        <td className="px-3 py-3">{Number(i.requiredHours)}</td>
+                        <td className="px-3 py-3">{tasks ? "—" : Number(i.requiredHours)}</td>
                         <td className="px-3 py-3">
-                          {Number(i.workedHours)}
-                          {Number(i.paidLeaveHours) > 0 && <span className="text-xs text-muted"> + {Number(i.paidLeaveHours)}</span>}
+                          {tasks ? (
+                            late.length ? <span className="text-danger">{late.length} تاسك متأخر</span> : <span className="text-success">كله في ميعاده</span>
+                          ) : (
+                            <>
+                              {Number(i.workedHours)}
+                              {Number(i.paidLeaveHours) > 0 && <span className="text-xs text-muted"> + {Number(i.paidLeaveHours)}</span>}
+                            </>
+                          )}
                         </td>
                         <td className="px-3 py-3">
-                          {Number(i.shortHours) > 0 ? (
+                          {Number(i.deduction) > 0 ? (
                             <span className="text-danger">
-                              {Number(i.shortHours)} س<br />− {money(i.deduction)}
+                              {tasks ? "أيام بدون مرتب" : `${Number(i.shortHours)} س`}
+                              <br />− {money(i.deduction)}
                             </span>
                           ) : (
                             "—"
                           )}
                         </td>
                         <td className="px-3 py-3">
-                          <OvertimeCell itemId={i.id} surplus={Number(i.surplusHours)} approved={Number(i.approvedOvertimeHours)} locked={locked} />
+                          {tasks ? <span className="text-muted">—</span> : <OvertimeCell itemId={i.id} surplus={Number(i.surplusHours)} approved={Number(i.approvedOvertimeHours)} locked={locked} />}
                         </td>
                         <td className="px-3 py-3 text-success">{Number(i.overtimePay) > 0 ? `+ ${money(i.overtimePay)}` : "—"}</td>
                         <td className="min-w-64 px-3 py-3">
-                          <details>
+                          <details open={tasks && late.length > 0 && adj.length === 0 && !locked}>
                             <summary className="cursor-pointer text-xs text-primary">
-                              {adj.length ? `${adj.length} تعديل` : locked ? "—" : "إضافة"}
+                              {adj.length ? `${adj.length} تعديل` : locked ? "—" : tasks && late.length ? "خصم التأخير" : "إضافة"}
                             </summary>
-                            <div className="mt-2">
+                            <div className="mt-2 space-y-3">
+                              {late.length > 0 && (
+                                <ul className="space-y-1 rounded-lg bg-danger-soft/50 p-2 text-xs">
+                                  {late.map((t) => (
+                                    <li key={t.id} className="flex justify-between gap-2">
+                                      <a href={t.url} target="_blank" rel="noreferrer" className="truncate hover:underline" dir="auto">{t.name}</a>
+                                      <span className="shrink-0 text-danger">{t.state === "OVERDUE" ? "لسه ما اتسلمش" : "اتسلّم"} • متأخر {t.lateDays} يوم</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
                               <Adjustments itemId={i.id} items={adj} locked={locked} currency={cur} />
                             </div>
                           </details>

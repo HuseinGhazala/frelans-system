@@ -13,22 +13,32 @@ import { Card, CardHeader, PageHeader, StatCard } from "@/components/ui/card";
 import { closeStaleAgentSessions, getOpenSession, liveStatusOf, monthSummary } from "@/lib/attendance";
 import { db } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { formatDuration, HOUR_MS, parseDateKey, toDateKey } from "@/lib/time";
+import { addDays, daysInMonth, formatDuration, HOUR_MS, parseDateKey, startOfDay, toDateKey } from "@/lib/time";
+import { DeliveryView } from "@/components/tasks/delivery-view";
+import { buttonClass } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
+import { employeeDelivery } from "@/lib/delivery";
 
 export const metadata: Metadata = { title: "بيانات الموظف" };
 
-const TABS = [
+const HOURS_TABS = [
   { id: "day", label: "اليوم" },
   { id: "month", label: "الشهر" },
   { id: "profile", label: "البيانات والإعدادات" },
-] as const;
+];
+const TASKS_TABS = [
+  { id: "tasks", label: "التاسكات" },
+  { id: "profile", label: "البيانات والإعدادات" },
+];
 
 export default async function EmployeePage({ params, searchParams }: PageProps<"/admin/employees/[id]">) {
   const { id } = await params;
   const sp = await searchParams;
-  const tab = TABS.find((t) => t.id === sp.tab)?.id ?? "day";
   const employee = await db.user.findUnique({ where: { id, role: "EMPLOYEE" }, include: { profile: true } });
   if (!employee) notFound();
+  const tasksMode = employee.profile?.workMode === "TASKS";
+  const TABS = tasksMode ? TASKS_TABS : HOURS_TABS;
+  const tab = TABS.find((t) => t.id === sp.tab)?.id ?? TABS[0].id;
 
   const settings = await getSettings();
   const tz = settings.general.timezone;
@@ -44,7 +54,8 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
   ]);
   const dailyMs = Number(employee.profile?.dailyHours ?? settings.attendance.defaultDailyHours) * HOUR_MS;
   const seenFmt = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { dateStyle: "medium", timeStyle: "short", timeZone: tz });
-  const diff = summary.workedMs - summary.requiredMs;
+  const diff = summary.workedMs + summary.paidLeaveMs - summary.requiredMs;
+  const monthParam = typeof sp.month === "string" && /^\d{4}-\d{2}$/.test(sp.month) ? sp.month : today.slice(0, 7);
   const p = employee.profile;
   const monthName = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, 1)));
 
@@ -56,8 +67,8 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
         action={
           <div className="flex items-center gap-3">
             {!employee.active && <Badge tone="danger">موقوف</Badge>}
-            <StatusBadge status={liveStatusOf(open)} />
-            <Avatar name={employee.name} status={liveStatusOf(open)} size={44} />
+            {tasksMode ? <Badge tone="info">نظام التاسكات</Badge> : <StatusBadge status={liveStatusOf(open)} />}
+            <Avatar name={employee.name} status={tasksMode ? undefined : liveStatusOf(open)} size={44} />
           </div>
         }
       />
@@ -76,6 +87,8 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
           </Link>
         ))}
       </nav>
+
+      {tab === "tasks" && <TasksTab userId={id} month={monthParam} tz={tz} linked={Boolean(employee.profile?.trelloMemberId)} />}
 
       {tab === "day" && (
         <>
@@ -123,6 +136,7 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
             idleThresholdMin: p?.idleThresholdMin?.toString() ?? "",
             blurScreenshots: p?.blurScreenshots == null ? "default" : p.blurScreenshots ? "on" : "off",
             trelloMemberId: p?.trelloMemberId ?? "",
+            workMode: p?.workMode ?? "HOURS",
           }}
           trelloMembers={trelloMembers}
         />
@@ -165,6 +179,25 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
         </div>
       </div>
       )}
+    </>
+  );
+}
+
+async function TasksTab({ userId, month, tz, linked }: { userId: string; month: string; tz: string; linked: boolean }) {
+  const [y, m] = month.split("-").map(Number);
+  const days = daysInMonth(y, m);
+  const cards = await employeeDelivery(userId, startOfDay(days[0], tz), startOfDay(addDays(days[days.length - 1], 1), tz));
+  return (
+    <>
+      <form className="mb-4 flex items-end gap-2">
+        <input type="hidden" name="tab" value="tasks" />
+        <label className="text-sm">
+          <span className="mb-1 block font-medium">الشهر</span>
+          <Input type="month" name="month" defaultValue={month} dir="ltr" className="w-44" />
+        </label>
+        <button className={buttonClass("secondary")}>عرض</button>
+      </form>
+      <DeliveryView cards={cards} tz={tz} linked={linked} />
     </>
   );
 }

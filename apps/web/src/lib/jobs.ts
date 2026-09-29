@@ -54,7 +54,10 @@ async function checkLongIdle(now: Date) {
 /** تقييم يوم خلص: غياب، ساعات ناقصة، إنتاجية منخفضة */
 export async function evaluateDay(day: string) {
   const { alerts, general } = await getSettings();
-  const employees = await db.user.findMany({ where: { role: "EMPLOYEE", active: true }, select: { id: true, name: true } });
+  const employees = await db.user.findMany({
+    where: { role: "EMPLOYEE", active: true, NOT: { profile: { is: { workMode: "TASKS" } } } },
+    select: { id: true, name: true },
+  });
   if (!employees.length) return;
   const summaries = await rangeSummary(employees.map((e) => e.id), day, day, startOfDay(addDays(day, 1), general.timezone));
   for (const e of employees) {
@@ -93,11 +96,42 @@ export async function evaluateDay(day: string) {
   }
 }
 
+/** موظفين التاسكات: كروت عدّى ميعاد تسليمها (آخر أسبوع) وما اتسلمتش — تنبيه واحد لكل كارت */
+export async function checkOverdueTasks(now = new Date()) {
+  const { general, trello } = await getSettings();
+  const staff = await db.user.findMany({
+    where: { role: "EMPLOYEE", active: true, profile: { is: { workMode: "TASKS", trelloMemberId: { not: null } } } },
+    select: { id: true, name: true, profile: { select: { trelloMemberId: true } } },
+  });
+  if (!staff.length) return;
+  const cards = await db.trelloCard.findMany({
+    where: { boardId: { in: trello.boardIds }, completedAt: null, closed: false, due: { gte: new Date(now.getTime() - 7 * 86_400_000), lt: now } },
+  });
+  for (const c of cards) {
+    for (const e of staff.filter((x) => c.memberIds.includes(x.profile!.trelloMemberId!))) {
+      const day = toDateKey(c.due!, general.timezone);
+      await createAlert({
+        type: "TASK_OVERDUE",
+        userId: e.id,
+        day,
+        dedupeKey: `TASK_OVERDUE:${e.id}:${c.id}`,
+        message: `${e.name} ما سلّمش "${c.name}" وميعاده كان ${day}`,
+        link: `/admin/employees/${e.id}?tab=tasks`,
+      });
+    }
+  }
+}
+
 /** ملخص اليوم بالإيميل: جدول لكل الفريق */
 export async function sendDailySummary(day: string, now = new Date()) {
   const { general } = await getSettings();
-  const employees = await db.user.findMany({ where: { role: "EMPLOYEE", active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } });
-  if (!employees.length) return;
+  const employees = await db.user.findMany({
+    where: { role: "EMPLOYEE", active: true, NOT: { profile: { is: { workMode: "TASKS" } } } },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  const taskEmployees = await db.user.findMany({ where: { role: "EMPLOYEE", active: true, profile: { is: { workMode: "TASKS" } } }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+  if (!employees.length && !taskEmployees.length) return;
   const summaries = await rangeSummary(employees.map((e) => e.id), day, day, now);
   const rows: string[] = [];
   for (const e of employees) {
@@ -114,7 +148,21 @@ export async function sendDailySummary(day: string, now = new Date()) {
   const html = `<h2>ملخص يوم ${day} — ${escapeHtml(general.companyName)}</h2>
 <table style="border-collapse:collapse;font-size:14px"><thead><tr>${["الموظف", "الحالة", "الساعات", "النشاط", "الإنتاجية", "أكتر البرامج"].map((h) => `<th ${td}>${h}</th>`).join("")}</tr></thead>
 <tbody>${rows.join("").replaceAll("<td>", `<td ${td}>`)}</tbody></table>`;
-  await emailAdmins(`ملخص يوم ${day} — راصد`, html);
+  let tasksHtml = "";
+  if (taskEmployees.length) {
+    const { employeeDelivery } = await import("./delivery");
+    const from = startOfDay(day, general.timezone);
+    const to = startOfDay(addDays(day, 1), general.timezone);
+    const rowsT: string[] = [];
+    for (const e of taskEmployees) {
+      const cards = await employeeDelivery(e.id, from, to, now);
+      const doneToday = cards.filter((c) => c.completedAt && c.completedAt >= from && c.completedAt < to).length;
+      const overdue = cards.filter((c) => c.state === "OVERDUE").length;
+      rowsT.push(`<tr><td ${td}>${escapeHtml(e.name)}</td><td ${td}>${doneToday}</td><td ${td}>${overdue}</td></tr>`);
+    }
+    tasksHtml = `<h3>موظفين نظام التاسكات</h3><table style="border-collapse:collapse;font-size:14px"><thead><tr><th ${td}>الموظف</th><th ${td}>اتسلّم النهارده</th><th ${td}>متأخر</th></tr></thead><tbody>${rowsT.join("")}</tbody></table>`;
+  }
+  await emailAdmins(`ملخص يوم ${day} — راصد`, html + tasksHtml);
 }
 
 let running = false;
@@ -130,6 +178,7 @@ export async function runScheduledJobs(now = new Date()) {
 
     await closeStaleAgentSessions(now);
     await checkLongIdle(now);
+    await checkOverdueTasks(now);
 
     // تقييم الأيام اللي خلصت (ولو السيرفر كان واقف نعوّض لحد أسبوع)
     const last = await getMark("evaluatedDay");

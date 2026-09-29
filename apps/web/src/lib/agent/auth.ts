@@ -7,8 +7,10 @@ export async function authenticateDevice(request: Request) {
   const header = request.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (!token) return null;
-  const device = await db.device.findUnique({ where: { tokenHash: hashToken(token) }, include: { user: true } });
+  const device = await db.device.findUnique({ where: { tokenHash: hashToken(token) }, include: { user: { include: { profile: { select: { workMode: true } } } } } });
   if (!device || device.revokedAt || !device.user.active || device.user.role !== "EMPLOYEE") return null;
+  // موظفين نظام التاسكات مش بيستخدموا البرنامج
+  if (device.user.profile?.workMode === "TASKS") return null;
   await db.device.update({ where: { id: device.id }, data: { lastSeenAt: new Date() } });
   return device;
 }

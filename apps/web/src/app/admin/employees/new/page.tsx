@@ -32,6 +32,7 @@ export default async function NewEmployeePage() {
           idleThresholdMin: "",
           blurScreenshots: "default",
           trelloMemberId: "",
+          workMode: "HOURS",
         }}
       />
     </>

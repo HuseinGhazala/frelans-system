@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/ui/card";
 import { AlertsForm, AttendanceForm, GeneralForm, HolidaysCard, PayrollForm, SmtpForm } from "@/components/settings/settings-forms";
 import { CategoriesManager } from "@/components/settings/categories";
 import { TrelloSettings } from "@/components/settings/trello";
-import { listBoards } from "@/lib/trello";
+import { listBoards, listNamesForBoards } from "@/lib/trello";
 import { unclassifiedNames } from "@/lib/activity";
 import { db } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
@@ -64,12 +64,14 @@ export default async function SettingsPage({ searchParams }: PageProps<"/admin/s
   );
 }
 
-async function TrelloTab({ trello, tz }: { trello: { apiKey: string; token: string; boardIds: string[] }; tz: string }) {
+async function TrelloTab({ trello, tz }: { trello: { apiKey: string; token: string; boardIds: string[]; doneListNames: string[] }; tz: string }) {
   let boards: { id: string; name: string }[] = [];
+  let listNames: string[] = [];
   let boardsError: string | null = null;
   if (trello.apiKey && trello.token) {
     try {
       boards = await listBoards(trello);
+      listNames = await listNamesForBoards(trello, trello.boardIds.filter((id) => boards.some((b) => b.id === id)));
     } catch (e) {
       boardsError = e instanceof Error ? e.message : "مش قادر يوصل لـ Trello";
     }
@@ -82,6 +84,8 @@ async function TrelloTab({ trello, tz }: { trello: { apiKey: string; token: stri
       boards={boards}
       selected={trello.boardIds}
       boardsError={boardsError}
+      listNames={listNames}
+      doneLists={trello.doneListNames}
       lastSync={last?.syncedAt ? new Intl.DateTimeFormat("ar-EG-u-nu-latn", { dateStyle: "medium", timeStyle: "short", timeZone: tz }).format(last.syncedAt) : null}
     />
   );

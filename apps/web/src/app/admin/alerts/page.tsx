@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlarmClock, CalendarX, Clock, Moon, TrendingDown, type LucideIcon } from "lucide-react";
+import { AlarmClock, CalendarX, Clock, ListX, Moon, TrendingDown, type LucideIcon } from "lucide-react";
 import type { AlertType } from "@/generated/prisma/enums";
 import { MarkAllRead, MarkRead } from "@/components/alerts/mark-read";
 import { Card, EmptyState, PageHeader } from "@/components/ui/card";
@@ -16,6 +16,7 @@ const ICON: Record<AlertType, [LucideIcon, string]> = {
   LONG_IDLE: [Moon, "bg-[#ffedd5] text-idle"],
   LOW_PRODUCTIVITY: [TrendingDown, "bg-danger-soft text-danger"],
   LEAVE_REQUEST: [AlarmClock, "bg-info-soft text-info"],
+  TASK_OVERDUE: [ListX, "bg-danger-soft text-danger"],
 };
 const TYPES = Object.keys(ALERT_LABEL) as AlertType[];
 

@@ -2,9 +2,10 @@ import "server-only";
 import type { PayrollItem } from "@/generated/prisma/client";
 import { holidaysBetween, rangeSummary } from "./attendance";
 import { db } from "./db";
-import { computePayroll, type Adjustment } from "./payroll-calc";
+import { computePayroll, computeTaskPayroll, type Adjustment } from "./payroll-calc";
+import { employeeDelivery } from "./delivery";
 import { getSettings } from "./settings";
-import { daysInMonth, HOUR_MS, workingDaysInMonth } from "./time";
+import { addDays, daysInMonth, HOUR_MS, startOfDay, workingDaysInMonth } from "./time";
 
 export class PayrollLocked extends Error {}
 
@@ -12,10 +13,21 @@ export function adjustmentsOf(item: Pick<PayrollItem, "adjustments">): Adjustmen
   return Array.isArray(item.adjustments) ? (item.adjustments as Adjustment[]) : [];
 }
 
+export type LateTask = { id: string; name: string; url: string; due: string | null; completedAt: string | null; lateDays: number; state: string };
+
+export function lateTasksOf(item: Pick<PayrollItem, "lateTasks">): LateTask[] {
+  return Array.isArray(item.lateTasks) ? (item.lateTasks as LateTask[]) : [];
+}
+
 const hoursOf = (ms: number) => Math.round((ms / HOUR_MS) * 100) / 100;
 
 /** بيحسب قيم كشف المرتب من البيانات المتخزنة (بعد تعديل الإضافي أو التعديلات اليدوية) */
 export function recompute(item: PayrollItem, fullMonthWorkingDays: number, dailyHours: number) {
+  if (item.workMode === "TASKS") {
+    const adjustmentsTotal = adjustmentsOf(item).reduce((t, a) => t + (a.kind === "BONUS" ? a.amount : -a.amount), 0);
+    const net = Math.max(0, Number(item.baseSalary) - Number(item.deduction) + adjustmentsTotal);
+    return { approvedOvertimeHours: 0, overtimePay: 0, net: Math.round(net * 100) / 100 };
+  }
   return computePayroll({
     monthlySalary: Number(item.monthlySalary),
     fullMonthWorkingDays,
@@ -51,10 +63,53 @@ export async function refreshPayroll(year: number, month: number, now = new Date
   const prev = new Map((await db.payrollItem.findMany({ where: { periodId: period.id } })).map((i) => [i.userId, i]));
   const multiplier = settings.payroll.overtimeMultiplier;
 
+  const tz = settings.general.timezone;
+  const monthFrom = startOfDay(days[0], tz);
+  const monthTo = startOfDay(addDays(days[days.length - 1], 1), tz);
+
   for (const e of employees) {
     const s = summaries.find((x) => x.userId === e.id)!;
     const dailyHours = Number(e.profile!.dailyHours);
     const old = prev.get(e.id);
+
+    if (e.profile!.workMode === "TASKS") {
+      // التاسكات المتأخرة في الشهر: للمراجعة، والخصم بيتحط يدوي
+      const late = (await employeeDelivery(e.id, monthFrom, monthTo, now))
+        .filter((c) => (c.state === "DONE_LATE" || c.state === "OVERDUE") && ((c.due && c.due < monthTo) || (c.completedAt && c.completedAt >= monthFrom)))
+        .map((c) => ({ id: c.id, name: c.name, url: c.url, due: c.due?.toISOString() ?? null, completedAt: c.completedAt?.toISOString() ?? null, lateDays: c.lateDays, state: c.state }));
+      const adjustments = old ? adjustmentsOf(old) : [];
+      const r = computeTaskPayroll({
+        monthlySalary: Number(e.profile!.monthlySalary),
+        fullMonthWorkingDays,
+        employeeWorkingDays: s.workingDays.length,
+        unpaidLeaveDays: s.unpaidLeaveDays,
+        adjustments,
+      });
+      const data = {
+        workMode: "TASKS" as const,
+        monthlySalary: Number(e.profile!.monthlySalary),
+        hourlyRate: 0,
+        baseSalary: r.baseSalary,
+        requiredHours: 0,
+        workedHours: 0,
+        paidLeaveHours: 0,
+        unpaidLeaveDays: s.unpaidLeaveDays,
+        shortHours: 0,
+        deduction: r.deduction,
+        surplusHours: 0,
+        approvedOvertimeHours: 0,
+        overtimeMultiplier: 1,
+        overtimePay: 0,
+        lateTasks: late,
+        net: r.net,
+      };
+      await db.payrollItem.upsert({
+        where: { periodId_userId: { periodId: period.id, userId: e.id } },
+        create: { periodId: period.id, userId: e.id, ...data },
+        update: data,
+      });
+      continue;
+    }
     const input = {
       monthlySalary: Number(e.profile!.monthlySalary),
       fullMonthWorkingDays,
@@ -68,6 +123,8 @@ export async function refreshPayroll(year: number, month: number, now = new Date
     };
     const r = computePayroll(input);
     const data = {
+      workMode: "HOURS" as const,
+      lateTasks: [],
       monthlySalary: input.monthlySalary,
       hourlyRate: r.hourlyRate,
       baseSalary: r.baseSalary,

@@ -12,6 +12,7 @@ export const ALERT_LABEL: Record<AlertType, string> = {
   LONG_IDLE: "خمول طويل",
   LOW_PRODUCTIVITY: "إنتاجية منخفضة",
   LEAVE_REQUEST: "طلب إجازة",
+  TASK_OVERDUE: "تاسك متأخر",
 };
 
 const isUniqueViolation = (e: unknown) => (e as { code?: string })?.code === "P2002";

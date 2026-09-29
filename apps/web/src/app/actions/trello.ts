@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { audit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getSettings, saveSettingsSection } from "@/lib/settings";
-import { listBoards, saveTrelloBoards, syncTrello, TrelloError } from "@/lib/trello";
+import { listBoards, saveDoneLists, saveTrelloBoards, syncTrello, TrelloError } from "@/lib/trello";
 import type { ActionState } from "./types";
 
 /** حفظ مفتاح وتوكن Trello بعد التأكد إنهم شغالين */
@@ -53,7 +53,22 @@ export async function syncTrelloNow(): Promise<ActionState> {
 
 export async function disconnectTrello() {
   const admin = await requireAdmin();
-  await saveSettingsSection("trello", { apiKey: "", token: "", boardIds: [] });
+  await saveSettingsSection("trello", { apiKey: "", token: "", boardIds: [], doneListNames: [] });
   await audit(admin.id, "trello.disconnected");
   revalidatePath("/admin/settings");
+}
+
+/** الليستات اللي الكارت لما يتنقل لها يتحسب خلص (لموظفين التاسكات) */
+export async function chooseDoneLists(_: ActionState, formData: FormData): Promise<ActionState> {
+  const admin = await requireAdmin();
+  const names = formData.getAll("doneLists").map(String).filter(Boolean);
+  await saveDoneLists(names);
+  await audit(admin.id, "trello.done_lists_selected", undefined, { names });
+  try {
+    await syncTrello();
+  } catch {
+    // الحفظ تم، المزامنة هتتعاد تلقائي
+  }
+  revalidatePath("/admin", "layout");
+  return { success: names.length ? `تم: ${names.join("، ")}` : "مفيش ليستات مختارة — مش هيتحسب أي تاسك خلص" };
 }

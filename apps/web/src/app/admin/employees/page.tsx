@@ -60,7 +60,7 @@ export default async function EmployeesPage({ searchParams }: PageProps<"/admin/
                   <th className="px-4 py-3 font-medium">الموظف</th>
                   <th className="px-4 py-3 font-medium">المسمى الوظيفي</th>
                   <th className="px-4 py-3 font-medium">المرتب الشهري</th>
-                  <th className="px-4 py-3 font-medium">الساعات اليومية</th>
+                  <th className="px-4 py-3 font-medium">نظام العمل</th>
                   <th className="px-4 py-3 font-medium">الحساب</th>
                 </tr>
               </thead>
@@ -78,7 +78,9 @@ export default async function EmployeesPage({ searchParams }: PageProps<"/admin/
                     </td>
                     <td className="px-4 py-3">{e.jobTitle ?? "—"}</td>
                     <td className="px-4 py-3 tabular-nums">{e.profile ? formatMoney(e.profile.monthlySalary.toString(), settings.general.currency) : "—"}</td>
-                    <td className="px-4 py-3 tabular-nums">{e.profile ? Number(e.profile.dailyHours) : settings.attendance.defaultDailyHours} ساعات</td>
+                    <td className="px-4 py-3 tabular-nums">
+                      {e.profile?.workMode === "TASKS" ? <Badge tone="info">بالتاسكات</Badge> : `${e.profile ? Number(e.profile.dailyHours) : settings.attendance.defaultDailyHours} ساعات يوميًا`}
+                    </td>
                     <td className="px-4 py-3">
                       {!e.active ? <Badge tone="danger">موقوف</Badge> : e.passwordHash ? <Badge tone="success">نشط</Badge> : <Badge tone="warning">في انتظار قبول الدعوة</Badge>}
                     </td>

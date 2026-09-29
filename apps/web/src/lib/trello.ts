@@ -38,6 +38,10 @@ export async function syncTrello(now = new Date()) {
       trello<ApiMember[]>(`/boards/${boardId}/members`, cfg, { fields: "fullName,username" }),
     ]);
     const listNames = new Map(lists.map((l) => [l.id, l.name]));
+    const doneNames = new Set(cfg.doneListNames.map((n) => n.trim().toLowerCase()));
+    const previous = new Map(
+      (await db.trelloCard.findMany({ where: { boardId: board.id }, select: { id: true, completedAt: true } })).map((c) => [c.id, c.completedAt]),
+    );
     await db.trelloBoard.upsert({
       where: { id: board.id },
       create: { id: board.id, name: board.name, url: board.url, closed: board.closed, syncedAt: now },
@@ -47,15 +51,21 @@ export async function syncTrello(now = new Date()) {
       await db.trelloMember.upsert({ where: { id: m.id }, create: m, update: { fullName: m.fullName, username: m.username } });
     }
     for (const c of cards) {
+      const listName = listNames.get(c.idList) ?? "";
+      const done = doneNames.has(listName.trim().toLowerCase());
+      const lastActivity = c.dateLastActivity ? new Date(c.dateLastActivity) : null;
       const data = {
         boardId: board.id,
-        listName: listNames.get(c.idList) ?? "",
+        listId: c.idList,
+        listName,
+        // أول مرة نشوفه في ليست "خلصت" بناخد آخر نشاط عليه كوقت التسليم
+        completedAt: done ? (previous.get(c.id) ?? lastActivity ?? now) : null,
         name: c.name,
         url: c.url,
         closed: c.closed,
         due: c.due ? new Date(c.due) : null,
         memberIds: c.idMembers,
-        lastActivity: c.dateLastActivity ? new Date(c.dateLastActivity) : null,
+        lastActivity,
         syncedAt: now,
       };
       await db.trelloCard.upsert({ where: { id: c.id }, create: { id: c.id, ...data }, update: data });
@@ -65,6 +75,20 @@ export async function syncTrello(now = new Date()) {
     cardCount += cards.length;
   }
   return { boards: cfg.boardIds.length, cards: cardCount };
+}
+
+/** أسماء الليستات في البوردات المختارة (عشان الأدمن يختار ليستات "خلصت") */
+export async function listNamesForBoards(auth: { apiKey: string; token: string }, boardIds: string[]) {
+  const names = new Set<string>();
+  for (const id of boardIds) {
+    for (const l of await trello<ApiList[]>(`/boards/${id}/lists`, auth, { fields: "name", filter: "open" })) names.add(l.name);
+  }
+  return [...names];
+}
+
+export async function saveDoneLists(names: string[]) {
+  const { trello: cfg } = await getSettings();
+  await saveSettingsSection("trello", { ...cfg, doneListNames: names });
 }
 
 export async function saveTrelloBoards(boardIds: string[]) {

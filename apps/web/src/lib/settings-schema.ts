@@ -45,6 +45,8 @@ export const settingsSchema = z.object({
       apiKey: z.string().default(""),
       token: z.string().default(""),
       boardIds: z.array(z.string()).default([]),
+      /** أسماء الليستات اللي الكارت لما يتنقل لها يبقى خلص (زي Done) */
+      doneListNames: z.array(z.string()).default([]),
     })
     .prefault({}),
   smtp: z

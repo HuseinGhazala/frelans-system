@@ -1,12 +1,21 @@
 import type { PayrollItem } from "@/generated/prisma/client";
 import { Card } from "@/components/ui/card";
-import { adjustmentsOf } from "@/lib/payroll";
+import { adjustmentsOf, lateTasksOf } from "@/lib/payroll";
 import { formatMoney } from "@/lib/utils";
 
 /** كشف مرتب موظف (للعرض والطباعة) */
 export function Payslip({ item, name, monthLabel, currency, companyName }: { item: PayrollItem; name: string; monthLabel: string; currency: string; companyName: string }) {
   const m = (v: unknown) => formatMoney(Number(v), currency);
-  const rows: [string, string, "plus" | "minus" | null][] = [
+  const tasks = item.workMode === "TASKS";
+  const late = lateTasksOf(item);
+  const rows: [string, string, "plus" | "minus" | null][] = tasks
+    ? [
+        ["نظام العمل", "بالتاسكات — مرتب ثابت", null],
+        ["المرتب الشهري", m(item.monthlySalary), null],
+        ...(item.unpaidLeaveDays ? ([["إجازة بدون مرتب", `${item.unpaidLeaveDays} يوم`, null]] as [string, string, null][]) : []),
+        ["الأساسي المستحق", m(item.baseSalary), null],
+      ]
+    : [
     ["المرتب الشهري", m(item.monthlySalary), null],
     ["سعر الساعة", m(item.hourlyRate), null],
     ["الساعات المطلوبة", `${Number(item.requiredHours)} ساعة`, null],
@@ -14,7 +23,7 @@ export function Payslip({ item, name, monthLabel, currency, companyName }: { ite
     ...(Number(item.paidLeaveHours) ? ([["إجازات مدفوعة", `${Number(item.paidLeaveHours)} ساعة`, null]] as [string, string, null][]) : []),
     ...(item.unpaidLeaveDays ? ([["إجازة بدون مرتب", `${item.unpaidLeaveDays} يوم`, null]] as [string, string, null][]) : []),
     ["الأساسي المستحق", m(item.baseSalary), null],
-  ];
+      ];
   const adjustments = adjustmentsOf(item);
   return (
     <Card className="mx-auto max-w-2xl p-6 print:border-0 print:shadow-none">
@@ -35,7 +44,7 @@ export function Payslip({ item, name, monthLabel, currency, companyName }: { ite
         ))}
         {Number(item.deduction) > 0 && (
           <div className="flex justify-between text-danger">
-            <dt>خصم ساعات ناقصة ({Number(item.shortHours)} ساعة)</dt>
+            <dt>{tasks ? `خصم أيام بدون مرتب (${item.unpaidLeaveDays} يوم)` : `خصم ساعات ناقصة (${Number(item.shortHours)} ساعة)`}</dt>
             <dd className="tabular-nums">− {m(item.deduction)}</dd>
           </div>
         )}
@@ -52,11 +61,25 @@ export function Payslip({ item, name, monthLabel, currency, companyName }: { ite
           </div>
         ))}
       </dl>
+      {tasks && late.length > 0 && (
+        <div className="mt-4 rounded-lg border border-border p-3 text-sm">
+          <p className="mb-1 font-medium">تسليمات متأخرة الشهر ده</p>
+          <ul className="space-y-0.5 text-muted">
+            {late.map((t) => (
+              <li key={t.id}>
+                {t.name} — متأخر {t.lateDays} يوم{t.state === "OVERDUE" ? " (لسه ما اتسلمش)" : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="mt-6 flex items-center justify-between rounded-xl bg-primary-soft px-5 py-4">
         <span className="font-semibold text-primary">الصافي</span>
         <span className="text-2xl font-bold tabular-nums text-primary">{m(item.net)}</span>
       </div>
-      <p className="mt-4 text-xs text-muted">الحساب شهري: الأيام الناقصة بتتعوض بالأيام الزيادة، والإضافي بيتحسب بعد موافقة المدير بس.</p>
+      <p className="mt-4 text-xs text-muted">
+        {tasks ? "المرتب ثابت، وأي خصم على التأخير في التسليم بيحدده المدير." : "الحساب شهري: الأيام الناقصة بتتعوض بالأيام الزيادة، والإضافي بيتحسب بعد موافقة المدير بس."}
+      </p>
     </Card>
   );
 }

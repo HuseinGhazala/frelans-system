@@ -6,7 +6,8 @@ import { getSettings } from "./settings";
 import { addDays, daysInMonth, startOfDay, toDateKey, weekdayOf, type DateKey } from "./time";
 
 export async function reportEmployees() {
-  return db.user.findMany({ where: { role: "EMPLOYEE", active: true }, select: { id: true, name: true, hiredAt: true, createdAt: true }, orderBy: { name: "asc" } });
+  // موظفين نظام التاسكات ما ليهمش ساعات ولا حضور
+  return db.user.findMany({ where: { role: "EMPLOYEE", active: true, NOT: { profile: { is: { workMode: "TASKS" } } } }, select: { id: true, name: true, hiredAt: true, createdAt: true }, orderBy: { name: "asc" } });
 }
 
 export type HoursRow = {

@@ -48,3 +48,19 @@ describe("computePayroll", () => {
     expect(r.net).toBe(21100);
   });
 });
+
+import { computeTaskPayroll } from "./payroll-calc";
+
+describe("computeTaskPayroll", () => {
+  const base = { monthlySalary: 13000, fullMonthWorkingDays: 26, employeeWorkingDays: 26, unpaidLeaveDays: 0, adjustments: [] };
+  it("pays a fixed salary regardless of hours", () => {
+    expect(computeTaskPayroll(base).net).toBe(13000);
+  });
+  it("applies manual late-delivery deductions", () => {
+    expect(computeTaskPayroll({ ...base, adjustments: [{ kind: "DEDUCTION", amount: 300, reason: "تأخير تسليم" }] }).net).toBe(12700);
+  });
+  it("prorates a mid-month hire and deducts unpaid leave days", () => {
+    expect(computeTaskPayroll({ ...base, employeeWorkingDays: 13 }).net).toBe(6500);
+    expect(computeTaskPayroll({ ...base, unpaidLeaveDays: 2 })).toMatchObject({ deduction: 1000, net: 12000 });
+  });
+});

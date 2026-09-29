@@ -46,3 +46,26 @@ export function computePayroll(i: PayrollInput) {
     net: r2(Math.max(0, net)),
   };
 }
+
+/**
+ * مرتب موظف نظام التاسكات: ثابت (بيتقسم بالأيام لو اتعين في نص الشهر)،
+ * ناقص أيام الإجازة بدون مرتب، زائد/ناقص التعديلات اليدوية (زي خصم التأخير في التسليم).
+ */
+export function computeTaskPayroll(i: {
+  monthlySalary: number;
+  fullMonthWorkingDays: number;
+  employeeWorkingDays: number;
+  unpaidLeaveDays: number;
+  adjustments: Adjustment[];
+}) {
+  const dayRate = i.fullMonthWorkingDays > 0 ? i.monthlySalary / i.fullMonthWorkingDays : 0;
+  const baseSalary = Math.min(i.monthlySalary, dayRate * i.employeeWorkingDays);
+  const deduction = dayRate * i.unpaidLeaveDays;
+  const adjustmentsTotal = i.adjustments.reduce((t, a) => t + (a.kind === "BONUS" ? a.amount : -a.amount), 0);
+  return {
+    baseSalary: r2(baseSalary),
+    deduction: r2(deduction),
+    adjustmentsTotal: r2(adjustmentsTotal),
+    net: r2(Math.max(0, baseSalary - deduction + adjustmentsTotal)),
+  };
+}
