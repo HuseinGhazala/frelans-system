@@ -7,7 +7,7 @@ import type { ActionState } from "@/app/actions/types";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import type { LiveStatus } from "@/lib/attendance";
-import { formatDuration } from "@/lib/time";
+import { formatClock, formatDuration } from "@/lib/time";
 
 /** عداد حي لساعات اليوم + أزرار الحضور والاستراحة */
 export function ClockControls({
@@ -25,15 +25,18 @@ export function ClockControls({
 }) {
   const [pending, start] = useTransition();
   const [state, setState] = useState<ActionState>(null);
-  const [now, setNow] = useState(renderedAt);
+  // الوقت اللي فات بيتحسب من ساعة الجهاز نفسه من لحظة فتح الصفحة، عشان فرق الساعة بين الجهاز والسيرفر ما يوقفش العداد
+  const [tick, setTick] = useState({ key: renderedAt, elapsed: 0 });
 
   useEffect(() => {
     if (status !== "WORKING") return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    const startedAt = performance.now();
+    const t = setInterval(() => setTick({ key: renderedAt, elapsed: performance.now() - startedAt }), 1000);
     return () => clearInterval(t);
-  }, [status]);
+  }, [status, renderedAt]);
 
-  const worked = workedMsAtRender + (status === "WORKING" ? Math.max(0, now - renderedAt) : 0);
+  const elapsed = tick.key === renderedAt ? tick.elapsed : 0;
+  const worked = workedMsAtRender + (status === "WORKING" ? elapsed : 0);
   const pct = Math.min(100, (worked / requiredMs) * 100);
   const run = (fn: () => Promise<ActionState>) => start(async () => setState(await fn()));
 
@@ -45,7 +48,7 @@ export function ClockControls({
           <circle cx="18" cy="18" r="15.9" fill="none" stroke={pct >= 100 ? "var(--success)" : "var(--primary)"} strokeWidth="3" strokeLinecap="round" strokeDasharray={`${pct} 100`} />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold tabular-nums">{formatDuration(worked)}</span>
+          <span className="text-2xl font-bold tabular-nums">{formatClock(worked)}</span>
           <span className="text-xs text-muted">من {formatDuration(requiredMs)}</span>
         </div>
       </div>

@@ -147,4 +147,13 @@ export function formatDuration(ms: number): string {
   return `${ms < 0 && totalMin > 0 ? "-" : ""}${h}:${String(m).padStart(2, "0")}`;
 }
 
+/** عداد بالثواني: 1:05:09 */
+export function formatClock(ms: number): string {
+  const total = Math.floor(Math.max(0, ms) / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 export const HOUR_MS = 3_600_000;
