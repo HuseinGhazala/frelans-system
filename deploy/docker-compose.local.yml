@@ -1,0 +1,39 @@
+# تشغيل راصد على جهازك للتجربة (من غير دومين ولا HTTPS)
+#   docker compose -f docker-compose.local.yml up -d --build
+# وبعدين افتح http://localhost:3000
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rased
+      POSTGRES_PASSWORD: rased-local
+      POSTGRES_DB: rased
+    volumes:
+      - pgdata-local:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rased"]
+      interval: 5s
+      retries: 10
+
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://rased:rased-local@db:5432/rased
+      APP_URL: http://localhost:3000
+      STORAGE_DRIVER: local
+      STORAGE_DIR: /data/storage
+    volumes:
+      - screenshots-local:/data/storage
+
+volumes:
+  pgdata-local:
+  screenshots-local:
