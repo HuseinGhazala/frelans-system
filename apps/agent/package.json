@@ -72,6 +72,11 @@
       ],
       "category": "public.app-category.productivity",
       "icon": "assets/icon.png"
-    }
+    },
+    "publish": null
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HuseinGhazala/frelans-system.git"
   }
 }
