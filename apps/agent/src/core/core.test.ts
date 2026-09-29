@@ -35,6 +35,16 @@ describe("MinuteAggregator", () => {
     expect(out[0]).toMatchObject({ minute: new Date(T0).toISOString(), keyboard: 2, mouse: 1, app: "Figma", idle: false });
     expect(a.flush(T0 + 2 * MIN, () => false)[0].keyboard).toBe(1);
   });
+
+  it("tags each minute with the current Trello card", () => {
+    const a = new MinuteAggregator();
+    a.task = "card-1";
+    a.key(T0 + 1000);
+    a.task = null;
+    a.key(T0 + MIN + 1000);
+    const out = a.flush(T0 + 2 * MIN, () => false);
+    expect(out.map((m) => m.trelloCardId)).toEqual(["card-1", null]);
+  });
 });
 
 describe("IdleTracker", () => {

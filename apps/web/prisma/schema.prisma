@@ -179,21 +179,55 @@ model IdlePeriod {
 
 /// ملخص النشاط لكل دقيقة: أعداد بس، من غير أي محتوى اتكتب
 model ActivityMinute {
-  id        String      @id @default(cuid())
-  userId    String
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionId String
-  session   WorkSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  minute    DateTime
-  keyboard  Int         @default(0)
-  mouse     Int         @default(0)
-  app       String?
-  title     String?
-  domain    String?
-  idle      Boolean     @default(false)
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId    String
+  session      WorkSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  minute       DateTime
+  keyboard     Int         @default(0)
+  mouse        Int         @default(0)
+  app          String?
+  title        String?
+  domain       String?
+  idle         Boolean     @default(false)
+  /// كارت Trello اللي الموظف كان شغال عليه
+  trelloCardId String?
 
   @@unique([userId, minute])
   @@index([sessionId])
+  @@index([trelloCardId])
+}
+
+model TrelloBoard {
+  id       String       @id
+  name     String
+  url      String
+  closed   Boolean      @default(false)
+  syncedAt DateTime?
+  cards    TrelloCard[]
+}
+
+model TrelloCard {
+  id           String      @id
+  boardId      String
+  board        TrelloBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  listName     String
+  name         String
+  url          String
+  closed       Boolean     @default(false)
+  due          DateTime?
+  memberIds    String[]
+  lastActivity DateTime?
+  syncedAt     DateTime    @default(now())
+
+  @@index([boardId])
+}
+
+model TrelloMember {
+  id       String @id
+  fullName String
+  username String
 }
 
 /// لقطة شاشة من برنامج الديسكتوب (شاشة واحدة). بتتحذف تلقائي بعد مدة الاحتفاظ.

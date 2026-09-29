@@ -125,6 +125,10 @@ async function boot() {
   ipcMain.handle("startBreak", () => controller.startBreak());
   ipcMain.handle("endBreak", () => controller.endBreak());
   ipcMain.handle("logout", () => controller.logout());
+  ipcMain.handle("tasks", () => controller.listTasks());
+  ipcMain.handle("setTask", (_e, task: { id: string; name: string; boardName: string } | null) =>
+    controller.setTask(task ? { id: String(task.id), name: String(task.name), boardName: String(task.boardName) } : null),
+  );
   ipcMain.handle("openDashboard", () => {
     const v = controller.view();
     if (v.screen === "main") void shell.openExternal(v.dashboardUrl);

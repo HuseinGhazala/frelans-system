@@ -22,6 +22,9 @@ const ACTIONS: Record<string, string> = {
   "device.revoked": "إلغاء جهاز",
   "category.set": "تصنيف برنامج/موقع",
   "category.deleted": "حذف تصنيف",
+  "trello.connected": "ربط Trello",
+  "trello.disconnected": "إلغاء ربط Trello",
+  "trello.boards_selected": "اختيار بوردات Trello",
 };
 
 export default async function AuditPage() {

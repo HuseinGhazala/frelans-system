@@ -12,11 +12,13 @@ export type MinuteRecord = {
   title: string | null;
   domain: string | null;
   idle: boolean;
+  trelloCardId: string | null;
 };
 
 type Bucket = {
   keyboard: number;
   mouse: number;
+  task: string | null;
   windows: Map<string, { ms: number; sample: WindowSample }>;
 };
 
@@ -25,14 +27,17 @@ export const floorMinute = (t: number) => Math.floor(t / MINUTE_MS) * MINUTE_MS;
 
 export class MinuteAggregator {
   private buckets = new Map<number, Bucket>();
+  /** كارت Trello الحالي — بيتسجل مع كل دقيقة فيها نشاط */
+  task: string | null = null;
 
   private bucket(t: number): Bucket {
     const key = floorMinute(t);
     let b = this.buckets.get(key);
     if (!b) {
-      b = { keyboard: 0, mouse: 0, windows: new Map() };
+      b = { keyboard: 0, mouse: 0, task: this.task, windows: new Map() };
       this.buckets.set(key, b);
     }
+    b.task = this.task;
     return b;
   }
 
@@ -72,6 +77,7 @@ export class MinuteAggregator {
         title: top?.sample.title.slice(0, 300) || null,
         domain: top?.sample.site ?? null,
         idle: isIdle(key),
+        trelloCardId: b.task,
       });
     }
     return out;

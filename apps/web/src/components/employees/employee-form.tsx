@@ -22,6 +22,7 @@ export type EmployeeFormValues = {
   screenshotIntervalMin: string;
   idleThresholdMin: string;
   blurScreenshots: "default" | "on" | "off";
+  trelloMemberId: string;
 };
 
 export function EmployeeForm({
@@ -30,12 +31,14 @@ export function EmployeeForm({
   globalDefaults,
   submitLabel,
   currency,
+  trelloMembers = [],
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   defaults: EmployeeFormValues;
   globalDefaults: { screenshotIntervalMin: number; idleThresholdMin: number; blurScreenshots: boolean };
   submitLabel: string;
   currency: string;
+  trelloMembers?: { id: string; fullName: string; username: string }[];
 }) {
   const [state, formAction, pending] = useFormAction(action);
   const e = state?.fieldErrors ?? {};
@@ -112,6 +115,24 @@ export function EmployeeForm({
           </Field>
         </div>
       </Card>
+
+      {trelloMembers.length > 0 && (
+        <Card>
+          <CardHeader title="ربط Trello" description="عشان الكروت المسندة له تظهرله في البرنامج" />
+          <div className="p-5">
+            <Field label="عضو Trello" htmlFor="trelloMemberId" className="max-w-sm">
+              <Select id="trelloMemberId" name="trelloMemberId" defaultValue={defaults.trelloMemberId}>
+                <option value="">— مش مربوط —</option>
+                {trelloMembers.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.fullName} (@{m.username})
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        </Card>
+      )}
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>

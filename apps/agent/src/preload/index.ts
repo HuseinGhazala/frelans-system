@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { ViewModel } from "../core/types";
+import type { TaskCard, TaskRef, ViewModel } from "../core/types";
 
 /** الحاجات الوحيدة اللي الواجهة تقدر تعملها — مفيش أي وصول مباشر للنظام */
 const api = {
@@ -19,6 +19,8 @@ const api = {
   endBreak: (): Promise<void> => ipcRenderer.invoke("endBreak"),
   logout: (): Promise<void> => ipcRenderer.invoke("logout"),
   openDashboard: (): Promise<void> => ipcRenderer.invoke("openDashboard"),
+  tasks: (): Promise<{ cards: TaskCard[]; error: string | null }> => ipcRenderer.invoke("tasks"),
+  setTask: (task: TaskRef | null): Promise<void> => ipcRenderer.invoke("setTask", task),
 };
 
 export type RasedApi = typeof api;

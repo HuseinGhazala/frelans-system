@@ -36,10 +36,11 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) && sp.date <= today ? sp.date : today;
   const { year, month } = parseDateKey(today);
   await closeStaleAgentSessions();
-  const [open, summary, devices] = await Promise.all([
+  const [open, summary, devices, trelloMembers] = await Promise.all([
     getOpenSession(id),
     monthSummary(id, year, month),
     db.device.findMany({ where: { userId: id, revokedAt: null }, orderBy: { lastSeenAt: "desc" } }),
+    db.trelloMember.findMany({ orderBy: { fullName: "asc" } }),
   ]);
   const dailyMs = Number(employee.profile?.dailyHours ?? settings.attendance.defaultDailyHours) * HOUR_MS;
   const seenFmt = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { dateStyle: "medium", timeStyle: "short", timeZone: tz });
@@ -121,7 +122,9 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
             screenshotIntervalMin: p?.screenshotIntervalMin?.toString() ?? "",
             idleThresholdMin: p?.idleThresholdMin?.toString() ?? "",
             blurScreenshots: p?.blurScreenshots == null ? "default" : p.blurScreenshots ? "on" : "off",
+            trelloMemberId: p?.trelloMemberId ?? "",
           }}
+          trelloMembers={trelloMembers}
         />
         <div className="space-y-6">
           <Card>

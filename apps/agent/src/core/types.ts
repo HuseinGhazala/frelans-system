@@ -50,4 +50,8 @@ export type ViewModel =
       lastSyncAt: number | null;
       error: string | null;
       dashboardUrl: string;
+      task: TaskRef | null;
     };
+
+export type TaskRef = { id: string; name: string; boardName: string };
+export type TaskCard = TaskRef & { url: string; listName: string; due: string | null };

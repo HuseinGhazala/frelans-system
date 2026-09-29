@@ -40,6 +40,13 @@ export const settingsSchema = z.object({
       recipients: z.array(z.email()).default([]),
     })
     .prefault({}),
+  trello: z
+    .object({
+      apiKey: z.string().default(""),
+      token: z.string().default(""),
+      boardIds: z.array(z.string()).default([]),
+    })
+    .prefault({}),
   smtp: z
     .object({
       host: z.string().default(""),

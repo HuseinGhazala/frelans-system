@@ -28,6 +28,7 @@ export function createApi(session: Session): Api {
     logout: async () => {
       await request(url("/logout"), { method: "POST", body: "{}", token: session.token });
     },
+    tasks: () => request(url("/tasks"), { method: "GET", token: session.token }),
     uploadScreenshot: async (meta, jpeg) => {
       const form = new FormData();
       form.set("file", new Blob([new Uint8Array(jpeg)], { type: "image/jpeg" }), "shot.jpg");

@@ -111,3 +111,12 @@ input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px
 @keyframes spin { to { transform: rotate(360deg); } }
 .stat { display: flex; justify-content: space-between; font-size: 13px; }
 details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+
+.task-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; font: inherit; color: var(--text); cursor: pointer; text-align: right; }
+.task-row:hover { background: var(--surface-2); }
+.task-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.overlay { position: fixed; inset: 0; background: var(--bg); z-index: 10; }
+.task-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.task { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: right; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; color: var(--text); cursor: pointer; }
+.task:hover { background: var(--surface-2); }
+.task-active { border-color: var(--primary); background: var(--primary-soft); }

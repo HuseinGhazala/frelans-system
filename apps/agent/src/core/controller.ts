@@ -3,7 +3,7 @@ import { IdleTracker, type IdleEvent } from "./idle";
 import { MinuteAggregator, type WindowSample } from "./minutes";
 import { SyncQueue, type QueuedEvent } from "./queue";
 import { ScreenshotScheduler } from "./screenshots";
-import type { ServerState, ViewModel } from "./types";
+import type { ServerState, TaskCard, TaskRef, ViewModel } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -21,6 +21,7 @@ export type Api = {
   sync(body: { events: QueuedEvent[]; minutes: unknown[]; idleSince: string | null }): Promise<ServerState>;
   logout(): Promise<void>;
   uploadScreenshot(meta: ShotMeta, jpeg: Uint8Array): Promise<void>;
+  tasks(): Promise<{ cards: TaskCard[] }>;
 };
 
 export type ShotMeta = {
@@ -66,6 +67,9 @@ export type Session = {
   /** آخر حالة من السيرفر — عشان البرنامج يشتغل لو اتفتح والنت فاصل */
   cachedState: ServerState | null;
   saveState(state: ServerState | null): void;
+  /** المهمة المختارة (بتفضل محفوظة لو البرنامج اتقفل) */
+  task: TaskRef | null;
+  saveTask(task: TaskRef | null): void;
 };
 
 const SYNC_EVERY_MS = 60_000;
@@ -144,6 +148,7 @@ export class Controller {
       lastSyncAt: this.lastSyncAt,
       error: this.error,
       dashboardUrl: `${this.session.serverUrl.replace(/\/$/, "")}/me`,
+      task: this.session.task,
     };
   }
 
@@ -160,9 +165,28 @@ export class Controller {
     return this.tracking;
   }
 
+  // ---------- المهام (Trello) ----------
+
+  async listTasks(): Promise<{ cards: TaskCard[]; error: string | null }> {
+    try {
+      return { ...(await this.api.tasks()), error: null };
+    } catch (e) {
+      return { cards: [], error: e instanceof ApiError ? e.message : "مش قادر يوصل للسيرفر" };
+    }
+  }
+
+  setTask(task: TaskRef | null) {
+    // الدقايق اللي فاتت تتسجل على المهمة القديمة
+    if (this.tracking) this.flushMinutes(false);
+    this.session.saveTask(task);
+    this.agg.task = task?.id ?? null;
+    this.emit();
+  }
+
   // ---------- التشغيل ----------
 
   async start() {
+    this.agg.task = this.session.task?.id ?? null;
     this.timers.push(setInterval(() => void this.syncNow(), SYNC_EVERY_MS));
     this.timers.push(setInterval(() => this.tickIdle(), IDLE_EVERY_MS));
     this.timers.push(setInterval(() => void this.tickWindow(), WINDOW_EVERY_MS));
@@ -236,6 +260,8 @@ export class Controller {
     }
     this.session.saveToken(null);
     this.session.saveState(null);
+    this.session.saveTask(null);
+    this.agg.task = null;
     this.queue.clear();
     this.shotStore.clear();
     this.state = null;

@@ -31,6 +31,7 @@ const employeeSchema = z.object({
   screenshotIntervalMin: optionalInt(1, 60),
   idleThresholdMin: optionalInt(1, 60),
   blurScreenshots: z.enum(["default", "on", "off"]).default("default"),
+  trelloMemberId: z.string().max(64).optional(),
 });
 
 function parseEmployee(formData: FormData) {
@@ -46,6 +47,8 @@ function profileData(d: z.infer<typeof employeeSchema>) {
     screenshotIntervalMin: d.screenshotIntervalMin ?? null,
     idleThresholdMin: d.idleThresholdMin ?? null,
     blurScreenshots: d.blurScreenshots === "default" ? null : d.blurScreenshots === "on",
+    // الحقل بيظهر بس لو Trello مربوط، فلو مش موجود في الفورم ما نغيّرش القيمة
+    ...(d.trelloMemberId !== undefined && { trelloMemberId: d.trelloMemberId || null }),
   };
 }
 

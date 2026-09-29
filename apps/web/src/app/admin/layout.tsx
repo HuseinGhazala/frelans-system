@@ -6,7 +6,7 @@ const nav: NavItem[] = [
   { href: "/admin", label: "الرئيسية", icon: "Home", exact: true },
   { href: "/admin/employees", label: "الموظفين", icon: "Users" },
   { href: "/admin/reports", label: "التقارير", icon: "BarChart3" },
-  { href: "/admin/tasks", label: "المهام (Trello)", icon: "ListChecks", soon: true },
+  { href: "/admin/tasks", label: "المهام (Trello)", icon: "ListChecks" },
   { href: "/admin/leaves", label: "الإجازات", icon: "CalendarDays", soon: true },
   { href: "/admin/payroll", label: "المرتبات", icon: "Wallet", soon: true },
   { href: "/admin/alerts", label: "التنبيهات", icon: "Bell", soon: true },

@@ -35,6 +35,7 @@ function setup(initial: Partial<ServerState> = {}) {
     }),
     logout: vi.fn(async () => {}),
     uploadScreenshot: vi.fn(async () => {}),
+    tasks: vi.fn(async () => ({ cards: [] })),
   };
   const input = { on: false };
   const platform: Platform = {
@@ -63,6 +64,10 @@ function setup(initial: Partial<ServerState> = {}) {
     },
     cachedState: null,
     saveState: () => {},
+    task: null,
+    saveTask(t) {
+      this.task = t;
+    },
   };
   const shotsMap = new Map<string, { meta: import("./controller").ShotMeta; jpeg: Uint8Array }>();
   let n = 0;

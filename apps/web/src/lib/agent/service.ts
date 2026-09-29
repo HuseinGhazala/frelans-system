@@ -144,6 +144,7 @@ export async function saveMinutes(userId: string, minutes: ActivityMinuteInput[]
       title: m.title ?? null,
       domain: m.domain ?? null,
       idle: m.idle,
+      trelloCardId: m.trelloCardId ?? null,
     };
     await db.activityMinute.upsert({
       where: { userId_minute: { userId, minute } },

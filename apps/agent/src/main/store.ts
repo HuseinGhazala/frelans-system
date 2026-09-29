@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Session, ShotMeta, ShotStore } from "../core/controller";
 import type { QueueData, QueueStorage } from "../core/queue";
-import type { ServerState } from "../core/types";
+import type { ServerState, TaskRef } from "../core/types";
 
 declare const __DEFAULT_SERVER_URL__: string;
 
@@ -47,14 +47,23 @@ function writeToken(token: string | null) {
 }
 
 export function createSession(): Session {
-  const config = readJson<{ serverUrl?: string }>("config.json") ?? {};
+  const config = readJson<{ serverUrl?: string; task?: TaskRef | null }>("config.json") ?? {};
+  const saveConfig = (patch: Partial<typeof config>) => {
+    Object.assign(config, patch);
+    writeJson("config.json", config);
+  };
   return {
     serverUrl: config.serverUrl ?? __DEFAULT_SERVER_URL__,
     token: readToken(),
     cachedState: readJson<ServerState>("state.json"),
+    task: config.task ?? null,
     saveServerUrl(url) {
       this.serverUrl = url;
-      writeJson("config.json", { serverUrl: url });
+      saveConfig({ serverUrl: url });
+    },
+    saveTask(task) {
+      this.task = task;
+      saveConfig({ task });
     },
     saveToken(token) {
       this.token = token;

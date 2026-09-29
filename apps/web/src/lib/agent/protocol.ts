@@ -24,6 +24,7 @@ export const activityMinuteSchema = z.object({
   title: z.string().max(300).nullish(),
   domain: z.string().max(200).nullish(),
   idle: z.boolean().default(false),
+  trelloCardId: z.string().max(64).nullish(),
 });
 export type ActivityMinuteInput = z.infer<typeof activityMinuteSchema>;
 

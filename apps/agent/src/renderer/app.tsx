@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { RasedApi } from "../preload";
-import type { ViewModel } from "../core/types";
+import type { TaskCard, ViewModel } from "../core/types";
 
 declare global {
   interface Window {
@@ -114,8 +114,54 @@ function Consent({ v }: { v: Extract<ViewModel, { screen: "consent" }> }) {
   );
 }
 
+function TaskPicker({ current, onClose }: { current: string | null; onClose: () => void }) {
+  const [cards, setCards] = useState<TaskCard[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const load = () => {
+    setCards(null);
+    void rased.tasks().then((r) => {
+      setCards(r.cards);
+      setError(r.error);
+    });
+  };
+  useEffect(load, []);
+  const pick = async (c: TaskCard | null) => {
+    await rased.setTask(c ? { id: c.id, name: c.name, boardName: c.boardName } : null);
+    onClose();
+  };
+  const filtered = (cards ?? []).filter((c) => !q || `${c.name} ${c.boardName} ${c.listName}`.toLowerCase().includes(q.toLowerCase()));
+  return (
+    <div className="overlay">
+      <div className="screen" style={{ gap: 12 }}>
+        <div className="row" style={{ alignItems: "center" }}>
+          <h1 style={{ flex: 1 }}>اختر المهمة</h1>
+          <button className="btn-link" style={{ flex: "none" }} onClick={onClose}>إغلاق</button>
+        </div>
+        <input type="text" placeholder="بحث..." value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+        {error && <div className="alert alert-error">{error}</div>}
+        <div className="task-list">
+          <button className={`task ${current === null ? "task-active" : ""}`} onClick={() => void pick(null)}>
+            <b>بدون مهمة</b>
+          </button>
+          {cards === null && <div className="center" style={{ padding: 20, display: "flex" }}><div className="spin" /></div>}
+          {cards?.length === 0 && !error && <p className="muted small" style={{ padding: 8 }}>مفيش كروت مسندة ليك على Trello (أو حسابك مش مربوط — كلّم المدير).</p>}
+          {filtered.map((c) => (
+            <button key={c.id} className={`task ${current === c.id ? "task-active" : ""}`} onClick={() => void pick(c)}>
+              <b dir="auto">{c.name}</b>
+              <span className="muted small">{c.boardName} • {c.listName}{c.due ? ` • تسليم ${new Date(c.due).toLocaleDateString("ar-EG-u-nu-latn")}` : ""}</span>
+            </button>
+          ))}
+        </div>
+        <button className="btn btn-outline" onClick={load}>تحديث من Trello</button>
+      </div>
+    </div>
+  );
+}
+
 function Main({ v }: { v: MainView }) {
   const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
   const live = v.status === "WORKING" && !v.webSession && !v.idleSince;
   useTick(v.status !== "OFFLINE");
   const serverNow = Date.now() + v.clockOffsetMs;
@@ -163,6 +209,12 @@ function Main({ v }: { v: MainView }) {
           </div>
         )}
       </div>
+
+      <button className="task-row" onClick={() => setPicking(true)}>
+        <span className="muted small">المهمة</span>
+        <span className="task-name" dir="auto">{v.task ? v.task.name : "بدون مهمة"}</span>
+        <span className="btn-link small" style={{ flex: "none" }}>تغيير</span>
+      </button>
 
       {v.webSession && (
         <div className="alert alert-info">
@@ -229,6 +281,7 @@ function Main({ v }: { v: MainView }) {
           </button>
         </span>
       </div>
+      {picking && <TaskPicker current={v.task?.id ?? null} onClose={() => setPicking(false)} />}
     </div>
   );
 }
