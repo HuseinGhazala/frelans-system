@@ -76,3 +76,34 @@ describe("SyncQueue", () => {
     expect(restored.peek().events.map((e) => e.id)).toEqual(["2"]);
   });
 });
+
+import { ScreenshotScheduler } from "./screenshots";
+
+describe("ScreenshotScheduler", () => {
+  it("takes exactly one screenshot per interval at a random time", () => {
+    let r = 0.5;
+    const s = new ScreenshotScheduler(10 * MIN, () => r);
+    s.start(T0);
+    expect(s.due(T0 + 4 * MIN)).toBe(false);
+    expect(s.due(T0 + 5 * MIN)).toBe(true);
+    expect(s.due(T0 + 6 * MIN)).toBe(false); // مرة واحدة بس في الفترة
+    r = 0;
+    expect(s.due(T0 + 10 * MIN + 5_000)).toBe(false);
+    expect(s.due(T0 + 10 * MIN + 10_000)).toBe(true);
+  });
+
+  it("skips windows that passed while paused", () => {
+    const s = new ScreenshotScheduler(10 * MIN, () => 0.5);
+    s.start(T0);
+    // الجهاز كان نايم ساعة: لقطة واحدة بس في الفترة الحالية، مش 6
+    expect(s.due(T0 + 65 * MIN)).toBe(true);
+    expect(s.due(T0 + 66 * MIN)).toBe(false);
+  });
+
+  it("does nothing when stopped", () => {
+    const s = new ScreenshotScheduler(10 * MIN, () => 0);
+    s.start(T0);
+    s.stop();
+    expect(s.due(T0 + 20 * MIN)).toBe(false);
+  });
+});

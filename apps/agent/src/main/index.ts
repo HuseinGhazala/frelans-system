@@ -5,7 +5,7 @@ import { SyncQueue } from "../core/queue";
 import type { ViewModel } from "../core/types";
 import { createApi } from "./api";
 import { createPlatform } from "./platform";
-import { createSession, queueStorage } from "./store";
+import { createSession, createShotStore, queueStorage } from "./store";
 
 const assets = (name: string) => path.join(__dirname, "..", "assets", name);
 
@@ -102,7 +102,7 @@ async function boot() {
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: true, args: ["--hidden"] });
 
   const session = createSession();
-  controller = new Controller(createApi(session), new SyncQueue(queueStorage), createPlatform(), session);
+  controller = new Controller(createApi(session), new SyncQueue(queueStorage), createPlatform(), session, createShotStore());
 
   tray = new Tray(nativeImage.createFromPath(assets("tray-off.png")));
   tray.on("click", showWindow);

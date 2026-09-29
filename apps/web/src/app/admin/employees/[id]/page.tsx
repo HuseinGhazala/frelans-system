@@ -1,35 +1,45 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { updateEmployee } from "@/app/actions/employees";
-import { DayActivityCard } from "@/components/attendance/day-activity";
+import Link from "next/link";
+import { DateNav } from "@/components/day/date-nav";
+import { DayView } from "@/components/day/day-view";
 import { EmployeeActions, RevokeDeviceButton } from "@/components/employees/employee-actions";
 import { EmployeeForm } from "@/components/employees/employee-form";
 import { Avatar, Badge, StatusBadge } from "@/components/ui/badge";
 import { Card, CardHeader, PageHeader, StatCard } from "@/components/ui/card";
-import { dayActivity } from "@/lib/activity";
 import { closeStaleAgentSessions, getOpenSession, liveStatusOf, monthSummary } from "@/lib/attendance";
 import { db } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { formatDuration, parseDateKey, toDateKey } from "@/lib/time";
+import { formatDuration, HOUR_MS, parseDateKey, toDateKey } from "@/lib/time";
 
 export const metadata: Metadata = { title: "بيانات الموظف" };
+
+const TABS = [
+  { id: "day", label: "اليوم" },
+  { id: "month", label: "الشهر" },
+  { id: "profile", label: "البيانات والإعدادات" },
+] as const;
 
 export default async function EmployeePage({ params, searchParams }: PageProps<"/admin/employees/[id]">) {
   const { id } = await params;
   const sp = await searchParams;
+  const tab = TABS.find((t) => t.id === sp.tab)?.id ?? "day";
   const employee = await db.user.findUnique({ where: { id, role: "EMPLOYEE" }, include: { profile: true } });
   if (!employee) notFound();
 
   const settings = await getSettings();
   const tz = settings.general.timezone;
-  const { year, month } = parseDateKey(toDateKey(new Date(), tz));
+  const today = toDateKey(new Date(), tz);
+  const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) && sp.date <= today ? sp.date : today;
+  const { year, month } = parseDateKey(today);
   await closeStaleAgentSessions();
-  const [open, summary, activity, devices] = await Promise.all([
+  const [open, summary, devices] = await Promise.all([
     getOpenSession(id),
     monthSummary(id, year, month),
-    dayActivity(id, tz),
     db.device.findMany({ where: { userId: id, revokedAt: null }, orderBy: { lastSeenAt: "desc" } }),
   ]);
+  const dailyMs = Number(employee.profile?.dailyHours ?? settings.attendance.defaultDailyHours) * HOUR_MS;
   const seenFmt = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { dateStyle: "medium", timeStyle: "short", timeZone: tz });
   const diff = summary.workedMs - summary.requiredMs;
   const p = employee.profile;
@@ -51,6 +61,30 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
 
       {sp.invite === "sent" && <p className="mb-6 rounded-lg bg-success-soft px-4 py-3 text-sm text-success">تم إضافة الموظف وإرسال الدعوة على {employee.email}</p>}
 
+      <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
+        {TABS.map((t) => (
+          <Link
+            key={t.id}
+            href={`?tab=${t.id}`}
+            className={`-mb-px whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium ${tab === t.id ? "border-primary text-primary" : "border-transparent text-muted hover:text-text"}`}
+            aria-current={tab === t.id ? "page" : undefined}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </nav>
+
+      {tab === "day" && (
+        <>
+          <div className="mb-4 flex justify-end">
+            <DateNav date={date} today={today} hrefFor={(d) => `?tab=day&date=${d}`} />
+          </div>
+          <DayView userId={id} date={date} tz={tz} dailyMs={dailyMs} intervalMin={employee.profile?.screenshotIntervalMin ?? settings.attendance.screenshotIntervalMin} />
+        </>
+      )}
+
+      {tab === "month" && (
+      <>
       <h2 className="mb-3 font-semibold">شهر {monthName}</h2>
       <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="الساعات المطلوبة" value={formatDuration(summary.requiredMs)} hint={`${summary.workingDays.length} يوم عمل`} />
@@ -59,10 +93,10 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
         <StatCard label="أيام حضور" value={summary.perDay.size} />
       </div>
 
-      <div className="mb-8">
-        <DayActivityCard a={activity} />
-      </div>
+      </>
+      )}
 
+      {tab === "profile" && (
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <EmployeeForm
           action={updateEmployee.bind(null, id)}
@@ -122,6 +156,7 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
           </Card>
         </div>
       </div>
+      )}
     </>
   );
 }

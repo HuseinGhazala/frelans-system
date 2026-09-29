@@ -34,6 +34,7 @@ model User {
   auditLogs    AuditLog[]
   devices      Device[]
   activity     ActivityMinute[]
+  screenshots  Screenshot[]
 }
 
 /// إعدادات الموظف. الحقول الاختيارية الفاضية بتاخد القيمة من الإعدادات العامة.
@@ -140,6 +141,7 @@ model WorkSession {
   breaks      Break[]
   idlePeriods IdlePeriod[]
   activity    ActivityMinute[]
+  screenshots Screenshot[]
 
   @@index([userId, startedAt])
 }
@@ -192,6 +194,29 @@ model ActivityMinute {
 
   @@unique([userId, minute])
   @@index([sessionId])
+}
+
+/// لقطة شاشة من برنامج الديسكتوب (شاشة واحدة). بتتحذف تلقائي بعد مدة الاحتفاظ.
+model Screenshot {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId  String
+  session    WorkSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  takenAt    DateTime
+  /// رقم الشاشة لو عنده أكتر من شاشة
+  display    Int         @default(0)
+  storageKey String      @unique
+  width      Int
+  height     Int
+  bytes      Int
+  blurred    Boolean     @default(false)
+  app        String?
+  domain     String?
+  createdAt  DateTime    @default(now())
+
+  @@unique([userId, takenAt, display])
+  @@index([takenAt])
 }
 
 model AuditLog {

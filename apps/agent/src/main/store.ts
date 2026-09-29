@@ -1,7 +1,7 @@
 import { app, safeStorage } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import type { Session } from "../core/controller";
+import type { Session, ShotMeta, ShotStore } from "../core/controller";
 import type { QueueData, QueueStorage } from "../core/queue";
 import type { ServerState } from "../core/types";
 
@@ -72,3 +72,55 @@ export const queueStorage: QueueStorage = {
   load: () => readJson<QueueData>("queue.json"),
   save: (data) => writeJson("queue.json", data),
 };
+
+const MAX_PENDING_SHOTS = 500;
+
+/** اللقطات المتأجلة: ملف jpg + ملف json لكل لقطة */
+export function createShotStore(): ShotStore {
+  const shotsDir = () => path.join(dir(), "pending-shots");
+  const ids = () => {
+    try {
+      return fs.readdirSync(shotsDir()).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5)).sort();
+    } catch {
+      return [];
+    }
+  };
+  const remove = (id: string) => {
+    fs.rmSync(path.join(shotsDir(), `${id}.json`), { force: true });
+    fs.rmSync(path.join(shotsDir(), `${id}.jpg`), { force: true });
+  };
+  return {
+    add(meta, jpeg) {
+      fs.mkdirSync(shotsDir(), { recursive: true });
+      const existing = ids();
+      // لو النت فاصل فترة طويلة جدًا نمسح الأقدم عشان ما نملاش الهارد
+      for (const old of existing.slice(0, Math.max(0, existing.length - MAX_PENDING_SHOTS + 1))) remove(old);
+      const id = `${Date.parse(meta.takenAt)}-${meta.display}`;
+      fs.writeFileSync(path.join(shotsDir(), `${id}.jpg`), jpeg);
+      fs.writeFileSync(path.join(shotsDir(), `${id}.json`), JSON.stringify(meta));
+    },
+    list(limit) {
+      const out: { id: string; meta: ShotMeta }[] = [];
+      for (const id of ids().slice(0, limit)) {
+        try {
+          out.push({ id, meta: JSON.parse(fs.readFileSync(path.join(shotsDir(), `${id}.json`), "utf8")) as ShotMeta });
+        } catch {
+          remove(id);
+        }
+      }
+      return out;
+    },
+    read(id) {
+      try {
+        return new Uint8Array(fs.readFileSync(path.join(shotsDir(), `${id}.jpg`)));
+      } catch {
+        return null;
+      }
+    },
+    remove,
+    clear() {
+      fs.rmSync(shotsDir(), { recursive: true, force: true });
+    },
+    count: () => ids().length,
+  };
+}

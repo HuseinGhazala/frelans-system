@@ -34,6 +34,7 @@ function setup(initial: Partial<ServerState> = {}) {
       return { ...server, serverTime: new Date().toISOString() };
     }),
     logout: vi.fn(async () => {}),
+    uploadScreenshot: vi.fn(async () => {}),
   };
   const input = { on: false };
   const platform: Platform = {
@@ -42,6 +43,7 @@ function setup(initial: Partial<ServerState> = {}) {
     isLocked: () => false,
     activeWindow: async () => ({ app: "Code", title: "x", site: null }),
     notify: vi.fn(),
+    captureScreens: async () => [{ display: 0, jpeg: new Uint8Array([0xff, 0xd8, 0xff]), width: 10, height: 10 }],
     startInput: () => (input.on = true),
     stopInput: () => (input.on = false),
     newId: (() => {
@@ -62,10 +64,21 @@ function setup(initial: Partial<ServerState> = {}) {
     cachedState: null,
     saveState: () => {},
   };
-  const c = new Controller(api, queue, platform, session);
+  const shotsMap = new Map<string, { meta: import("./controller").ShotMeta; jpeg: Uint8Array }>();
+  let n = 0;
+  const shotStore = {
+    add: (meta: import("./controller").ShotMeta, jpeg: Uint8Array) => void shotsMap.set(String(++n), { meta, jpeg }),
+    list: (limit: number) => [...shotsMap.entries()].slice(0, limit).map(([id, v]) => ({ id, meta: v.meta })),
+    read: (id: string) => shotsMap.get(id)?.jpeg ?? null,
+    remove: (id: string) => void shotsMap.delete(id),
+    clear: () => shotsMap.clear(),
+    count: () => shotsMap.size,
+  };
+  const c = new Controller(api, queue, platform, session, shotStore);
   return {
     c,
     api,
+    shotsMap,
     sent,
     input,
     queue,
@@ -76,6 +89,23 @@ function setup(initial: Partial<ServerState> = {}) {
 }
 
 describe("Controller", () => {
+  it("captures a screenshot while working and uploads it on sync", async () => {
+    vi.useFakeTimers({ now: Date.parse("2026-10-01T09:00:00Z") });
+    try {
+      const t = setup();
+      await t.c.syncNow();
+      await t.c.checkIn();
+      vi.setSystemTime(Date.now() + 11 * 60_000);
+      t.c.tickIdle();
+      await vi.waitFor(() => expect(t.shotsMap.size).toBe(1));
+      await t.c.syncNow();
+      expect(t.api.uploadScreenshot).toHaveBeenCalledOnce();
+      expect(t.shotsMap.size).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("checks in, tracks input, takes a break and checks out", async () => {
     const t = setup();
     await t.c.syncNow();

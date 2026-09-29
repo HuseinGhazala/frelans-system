@@ -1,4 +1,4 @@
-import { app, Notification, powerMonitor } from "electron";
+import { app, desktopCapturer, Notification, powerMonitor, screen } from "electron";
 import crypto from "node:crypto";
 import os from "node:os";
 import type { Platform } from "../core/controller";
@@ -32,6 +32,34 @@ function loadGetWindows() {
   return getWindows;
 }
 
+const MAX_WIDTH = 1600;
+const JPEG_QUALITY = 60;
+
+/**
+ * لقطة لكل شاشة. التشويش بيحصل هنا على جهاز الموظف: بنصغّر الصورة جدًا وبعدين نكبّرها،
+ * فالشكل العام يبان لكن الكلام ما يتقريش — والصورة الواضحة عمرها ما بتخرج من الجهاز.
+ */
+async function captureScreens(blur: boolean) {
+  const displays = screen.getAllDisplays();
+  const maxW = Math.max(...displays.map((d) => d.size.width * d.scaleFactor));
+  const maxH = Math.max(...displays.map((d) => d.size.height * d.scaleFactor));
+  const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: maxW, height: maxH } });
+  return sources
+    .filter((s) => !s.thumbnail.isEmpty())
+    .map((s, i) => {
+      let img = s.thumbnail;
+      const size = img.getSize();
+      if (size.width > MAX_WIDTH) img = img.resize({ width: MAX_WIDTH, quality: "good" });
+      if (blur) {
+        const { width } = img.getSize();
+        img = img.resize({ width: Math.max(16, Math.round(width / 14)), quality: "good" }).resize({ width, quality: "good" });
+      }
+      const idx = displays.findIndex((d) => String(d.id) === s.display_id);
+      const out = img.getSize();
+      return { display: idx >= 0 ? idx : i, jpeg: new Uint8Array(img.toJPEG(JPEG_QUALITY)), width: out.width, height: out.height };
+    });
+}
+
 export function createPlatform(): Platform {
   powerMonitor.on("lock-screen", () => (locked = true));
   powerMonitor.on("unlock-screen", () => (locked = false));
@@ -53,6 +81,7 @@ export function createPlatform(): Platform {
       const url = "url" in w ? (w.url as string | undefined) : undefined;
       return { app, title: w.title ?? "", site: siteOf(app, w.title ?? "", url) };
     },
+    captureScreens,
     notify(title, body) {
       if (Notification.isSupported()) new Notification({ title, body, silent: true }).show();
     },

@@ -2,6 +2,7 @@ import { ServerClock } from "./clock";
 import { IdleTracker, type IdleEvent } from "./idle";
 import { MinuteAggregator, type WindowSample } from "./minutes";
 import { SyncQueue, type QueuedEvent } from "./queue";
+import { ScreenshotScheduler } from "./screenshots";
 import type { ServerState, ViewModel } from "./types";
 
 export class ApiError extends Error {
@@ -19,6 +20,29 @@ export type Api = {
   consent(): Promise<ServerState>;
   sync(body: { events: QueuedEvent[]; minutes: unknown[]; idleSince: string | null }): Promise<ServerState>;
   logout(): Promise<void>;
+  uploadScreenshot(meta: ShotMeta, jpeg: Uint8Array): Promise<void>;
+};
+
+export type ShotMeta = {
+  takenAt: string;
+  display: number;
+  blurred: boolean;
+  width: number;
+  height: number;
+  app: string | null;
+  domain: string | null;
+};
+
+export type CapturedShot = { display: number; jpeg: Uint8Array; width: number; height: number };
+
+/** اللقطات اللي لسه ما اترفعتش (محفوظة على الجهاز لو النت فاصل) */
+export type ShotStore = {
+  add(meta: ShotMeta, jpeg: Uint8Array): void;
+  list(limit: number): { id: string; meta: ShotMeta }[];
+  read(id: string): Uint8Array | null;
+  remove(id: string): void;
+  clear(): void;
+  count(): number;
 };
 
 export type Platform = {
@@ -27,6 +51,7 @@ export type Platform = {
   isLocked(): boolean;
   activeWindow(): Promise<WindowSample | null>;
   notify(title: string, body: string): void;
+  captureScreens(blur: boolean): Promise<CapturedShot[]>;
   startInput(onKey: () => void, onMouse: () => void): void;
   stopInput(): void;
   newId(): string;
@@ -66,12 +91,15 @@ export class Controller {
   private lastWindowAt = 0;
   private lastWindow: WindowSample | null = null;
   private listeners = new Set<(v: ViewModel) => void>();
+  private shots = new ScreenshotScheduler(10 * 60_000);
+  private capturing = false;
 
   constructor(
     private api: Api,
     private queue: SyncQueue,
     private platform: Platform,
     private session: Session,
+    private shotStore: ShotStore,
   ) {
     this.idle = new IdleTracker({ idleThresholdMs: 5 * 60_000, autoCheckoutMs: 30 * 60_000, warnBeforeMs: 5 * 60_000 });
   }
@@ -112,7 +140,7 @@ export class Controller {
       dailyMs: s.config.dailyHours * 3_600_000,
       idleSince: this.idle.currentIdleSince,
       online: this.online,
-      pending: this.queue.size,
+      pending: this.queue.size + this.shotStore.count(),
       lastSyncAt: this.lastSyncAt,
       error: this.error,
       dashboardUrl: `${this.session.serverUrl.replace(/\/$/, "")}/me`,
@@ -209,6 +237,7 @@ export class Controller {
     this.session.saveToken(null);
     this.session.saveState(null);
     this.queue.clear();
+    this.shotStore.clear();
     this.state = null;
     this.localStatus = "OFFLINE";
     this.setTracking(false);
@@ -305,7 +334,9 @@ export class Controller {
       };
       this.platform.startInput(() => onInput("key"), () => onInput("mouse"));
       this.lastWindowAt = this.clock.now();
+      this.shots.start(this.clock.now());
     } else {
+      this.shots.stop();
       this.platform.stopInput();
       this.agg.clear();
       this.lastWindow = null;
@@ -331,6 +362,49 @@ export class Controller {
     const events = this.idle.update(now, this.platform.systemIdleMs(), this.platform.isLocked());
     for (const e of events) this.handleIdle(e);
     if (events.length) this.emit();
+    // لقطة الشاشة بس وهو شغال فعلاً (مش خامل)
+    if (this.tracking && this.idle.currentIdleSince === null && this.shots.due(now)) void this.takeScreenshot(now);
+  }
+
+  private async takeScreenshot(at: number) {
+    if (this.capturing) return;
+    this.capturing = true;
+    try {
+      const blur = this.state?.config.blurScreenshots ?? false;
+      const captured = await this.platform.captureScreens(blur);
+      if (!captured.length || !this.tracking) return;
+      const w = this.lastWindow;
+      for (const c of captured) {
+        this.shotStore.add(
+          { takenAt: new Date(at).toISOString(), display: c.display, blurred: blur, width: c.width, height: c.height, app: w?.app ?? null, domain: w?.site ?? null },
+          c.jpeg,
+        );
+      }
+      this.platform.notify("تم أخذ لقطة شاشة", new Intl.DateTimeFormat("ar-EG-u-nu-latn", { hour: "numeric", minute: "2-digit" }).format(at));
+      this.emit();
+    } catch (e) {
+      console.error("screenshot failed", e);
+    } finally {
+      this.capturing = false;
+    }
+  }
+
+  /** رفع اللقطات المتأجلة. لو السيرفر رفض لقطة (بيانات غلط) بنمسحها، ولو النت فاصل نوقف */
+  private async uploadShots() {
+    for (const { id, meta } of this.shotStore.list(20)) {
+      const jpeg = this.shotStore.read(id);
+      if (!jpeg) {
+        this.shotStore.remove(id);
+        continue;
+      }
+      try {
+        await this.api.uploadScreenshot(meta, jpeg);
+        this.shotStore.remove(id);
+      } catch (e) {
+        if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 429) this.shotStore.remove(id);
+        else throw e;
+      }
+    }
   }
 
   /** نادِ دي لما الجهاز يقفل أو ينام أو يرجع */
@@ -390,6 +464,8 @@ export class Controller {
           state = await this.api.sync({ ...batch, idleSince: idleSince ? new Date(idleSince).toISOString() : null });
           this.queue.ack(batch.events.length, batch.minutes.length);
         } while (this.queue.size > 0);
+        // اللقطات بعد الأحداث، عشان الجلسة تكون موجودة على السيرفر
+        await this.uploadShots();
       } else {
         state = await this.api.state();
       }
@@ -402,6 +478,7 @@ export class Controller {
         this.session.saveToken(null);
         this.session.saveState(null);
         this.queue.clear();
+        this.shotStore.clear();
         this.setTracking(false);
         this.localStatus = "OFFLINE";
         this.screen = "login";
@@ -429,6 +506,7 @@ export class Controller {
     }
     this.state = state;
     this.idle.setConfig(this.idleConfig());
+    this.shots.setInterval(state.config.screenshotIntervalMin * 60_000);
     this.screen = state.consentRequired ? "consent" : "main";
     // لو في أحداث لسه ما اتبعتتش، الحالة المحلية هي الأحدث
     if (this.queue.peek().events.length === 0) {
