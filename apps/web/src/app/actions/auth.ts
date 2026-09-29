@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { hashPassword, verifyPassword } from "@/lib/auth/crypto";
-import { createSession, deleteAllSessions, deleteSession } from "@/lib/auth/session";
+import { createSession, deleteAllSessions, deleteOtherSessions, deleteSession } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/dal";
 import { findValidToken, issueAuthToken, tokenUrl } from "@/lib/auth/tokens";
 import { sendMail } from "@/lib/mail";
 import { clearFailures, isRateLimited, recordFailure } from "@/lib/rate-limit";
@@ -116,4 +117,28 @@ export async function requestPasswordReset(_: ActionState, formData: FormData): 
   }
   // نفس الرسالة في كل الحالات عشان ما نكشفش مين عنده حساب
   return { success: "لو البريد ده مسجل عندنا، هيوصلك رابط لتعيين كلمة مرور جديدة." };
+}
+
+const changePasswordSchema = z
+  .object({ current: z.string().min(1, { error: "اكتب كلمة المرور الحالية" }), password: passwordSchema, confirm: z.string() })
+  .refine((d) => d.password === d.confirm, { error: "كلمتين المرور مش متطابقين", path: ["confirm"] })
+  .refine((d) => d.password !== d.current, { error: "اختار كلمة مرور مختلفة عن الحالية", path: ["password"] });
+
+/** تغيير كلمة المرور من جوه الحساب (للأدمن والموظف) */
+export async function changePassword(_: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const key = `change-password|${user.id}`;
+  if (isRateLimited(key)) return { error: "محاولات كتير غلط. استنى 15 دقيقة وحاول تاني." };
+  const parsed = changePasswordSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  if (!user.passwordHash || !(await verifyPassword(parsed.data.current, user.passwordHash))) {
+    recordFailure(key);
+    return { fieldErrors: { current: ["كلمة المرور الحالية غلط"] } };
+  }
+  clearFailures(key);
+  await db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(parsed.data.password) } });
+  // أي جهاز تاني كان داخل على الموقع بيخرج، والجهاز ده بيفضل داخل
+  await deleteOtherSessions(user.id);
+  await audit(user.id, "auth.password_changed", { type: "user", id: user.id });
+  return { success: "تم تغيير كلمة المرور. أي جهاز تاني كان داخل على الموقع اتعمله تسجيل خروج." };
 }

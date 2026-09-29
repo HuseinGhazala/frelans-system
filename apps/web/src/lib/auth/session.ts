@@ -42,3 +42,9 @@ export async function deleteSession() {
 export async function deleteAllSessions(userId: string) {
   await db.authSession.deleteMany({ where: { userId } });
 }
+
+/** تسجيل خروج من كل الأجهزة التانية مع الإبقاء على الجلسة الحالية */
+export async function deleteOtherSessions(userId: string) {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  await db.authSession.deleteMany({ where: { userId, ...(token && { tokenHash: { not: hashToken(token) } }) } });
+}

@@ -21,7 +21,7 @@ export default async function EmployeeLayout({ children }: { children: React.Rea
   const profile = await db.employeeProfile.findUnique({ where: { userId: user.id }, select: { workMode: true } });
   const nav = profile?.workMode === "TASKS" ? TASKS_NAV : HOURS_NAV;
   return (
-    <AppShell nav={nav} user={{ name: user.name, email: user.email, roleLabel: user.jobTitle ?? "موظف" }} companyName={settings.general.companyName}>
+    <AppShell nav={nav} user={{ name: user.name, email: user.email, roleLabel: user.jobTitle ?? "موظف" }} companyName={settings.general.companyName} accountHref="/me/account">
       {children}
     </AppShell>
   );

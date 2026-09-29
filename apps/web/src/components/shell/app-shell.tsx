@@ -33,6 +33,7 @@ export function AppShell({
   user,
   companyName,
   alertsBadge,
+  accountHref,
   children,
 }: {
   nav: NavItem[];
@@ -40,6 +41,8 @@ export function AppShell({
   companyName: string;
   /** عدد التنبيهات غير المقروءة (للأدمن) — بيظهر كجرس في الموبايل */
   alertsBadge?: number;
+  /** صفحة الحساب (تغيير كلمة المرور) */
+  accountHref: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -94,11 +97,13 @@ export function AppShell({
       </ul>
       <div className="border-t border-border p-3">
         <div className="flex items-center gap-3 px-2 py-2">
-          <Avatar name={user.name} size={36} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{user.name}</p>
-            <p className="truncate text-xs text-muted">{user.roleLabel}</p>
-          </div>
+          <Link href={accountHref} onClick={() => setOpen(false)} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg hover:opacity-80" title="حسابي وتغيير كلمة المرور">
+            <Avatar name={user.name} size={36} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{user.name}</p>
+              <p className="truncate text-xs text-muted">{user.roleLabel} • حسابي</p>
+            </div>
+          </Link>
           <form action={logout}>
             <button className="rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-danger" aria-label="تسجيل الخروج" title="تسجيل الخروج">
               <LogOut size={18} className="rotate-180" />

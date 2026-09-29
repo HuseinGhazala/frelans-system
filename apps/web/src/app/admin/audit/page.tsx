@@ -9,6 +9,7 @@ const ACTIONS: Record<string, string> = {
   "setup.admin_created": "إنشاء حساب المدير",
   "auth.invite_accepted": "قبول الدعوة وتعيين كلمة المرور",
   "auth.password_reset": "تعيين كلمة مرور جديدة",
+  "auth.password_changed": "تغيير كلمة المرور",
   "employee.created": "إضافة موظف",
   "employee.updated": "تعديل بيانات موظف",
   "employee.activated": "إعادة تفعيل موظف",

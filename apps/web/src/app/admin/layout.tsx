@@ -23,7 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: "/admin/settings", label: "الإعدادات", icon: "Settings" },
   ];
   return (
-    <AppShell nav={nav} user={{ name: user.name, email: user.email, roleLabel: "مدير النظام" }} companyName={settings.general.companyName} alertsBadge={unread}>
+    <AppShell nav={nav} user={{ name: user.name, email: user.email, roleLabel: "مدير النظام" }} companyName={settings.general.companyName} alertsBadge={unread} accountHref="/admin/account">
       {children}
     </AppShell>
   );
