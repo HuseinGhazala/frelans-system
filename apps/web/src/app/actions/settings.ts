@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth/dal";
 import { sendMail } from "@/lib/mail";
+import { normalizeName } from "@/lib/productivity";
 import { getSettings, saveSettingsSection } from "@/lib/settings";
 import { settingsSchema, type Settings, type SettingsSection } from "@/lib/settings-schema";
 import type { ActionState } from "./types";
@@ -102,4 +103,28 @@ export async function deleteHoliday(id: string) {
   await db.holiday.delete({ where: { id } });
   await audit(admin.id, "holiday.deleted", { type: "holiday", id });
   revalidatePath("/admin/settings");
+}
+
+const categorySchema = z.object({
+  name: z.string().trim().min(1, { error: "اكتب اسم البرنامج أو الموقع" }).max(200),
+  category: z.enum(["PRODUCTIVE", "NEUTRAL", "UNPRODUCTIVE"]),
+});
+
+/** تصنيف برنامج/موقع (أو تغيير تصنيفه) */
+export async function setAppCategory(_: ActionState, formData: FormData): Promise<ActionState> {
+  const admin = await requireAdmin();
+  const parsed = categorySchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  const pattern = normalizeName(parsed.data.name);
+  await db.appCategory.upsert({ where: { pattern }, create: { pattern, category: parsed.data.category }, update: { category: parsed.data.category } });
+  await audit(admin.id, "category.set", { type: "category", id: pattern }, { category: parsed.data.category });
+  revalidatePath("/admin", "layout");
+  return { success: "تم الحفظ" };
+}
+
+export async function deleteAppCategory(id: string) {
+  const admin = await requireAdmin();
+  const row = await db.appCategory.delete({ where: { id } });
+  await audit(admin.id, "category.deleted", { type: "category", id: row.pattern });
+  revalidatePath("/admin", "layout");
 }

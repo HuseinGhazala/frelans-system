@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "./db";
 import { getSettings } from "./settings";
-import { dayRange, HOUR_MS, monthRange, toDateKey, workedMs, workingDaysInMonth, type DateKey } from "./time";
+import { addDays, dayRange, daysInMonth, HOUR_MS, startOfDay, toDateKey, weekdayOf, workedMs, type DateKey } from "./time";
 
 export type LiveStatus = "WORKING" | "IDLE" | "ON_BREAK" | "OFFLINE";
 
@@ -67,47 +67,87 @@ export async function workedTodayByUser(userIds: string[], tz: string, now = new
   return result;
 }
 
-export type MonthSummary = {
-  workingDays: DateKey[];
-  requiredMs: number;
-  workedMs: number;
-  /** ساعات العمل لكل يوم في الشهر */
-  perDay: Map<DateKey, number>;
-};
-
-/** ملخص الشهر لموظف: المطلوب مقابل الفعلي (الحساب شهري صافي) */
-export async function monthSummary(userId: string, year: number, month: number, now = new Date()): Promise<MonthSummary> {
-  const settings = await getSettings();
-  const tz = settings.general.timezone;
-  const [user, profile, holidays] = await Promise.all([
-    db.user.findUniqueOrThrow({ where: { id: userId }, select: { hiredAt: true, createdAt: true } }),
-    db.employeeProfile.findUnique({ where: { userId } }),
-    db.holiday.findMany({ where: { date: { gte: new Date(Date.UTC(year, month - 1, 1)), lt: new Date(Date.UTC(year, month, 1)) } } }),
-  ]);
-  const dailyHours = profile ? Number(profile.dailyHours) : settings.attendance.defaultDailyHours;
-  // الموظف الجديد مطلوب منه ساعات الأيام من أول يوم شغل بس
-  const startKey = user.hiredAt ? user.hiredAt.toISOString().slice(0, 10) : toDateKey(user.createdAt, tz);
-  const workingDays = workingDaysInMonth(year, month, settings.general.weekendDays, holidays.map((h) => h.date.toISOString().slice(0, 10))).filter(
-    (k) => k >= startKey,
-  );
-
-  const { start, end } = monthRange(year, month, tz);
-  const sessions = await sessionsBetween([userId], start, end);
-  const perDay = new Map<DateKey, number>();
-  let total = 0;
+/** ساعات الشغل لكل موظف لكل يوم (الجلسة اللي بتعدي نص الليل بتتقسم على اليومين) */
+export async function workedPerDay(userIds: string[], from: Date, to: Date, tz: string, now = new Date()) {
+  const sessions = await sessionsBetween(userIds, from, to);
+  const result = new Map<string, Map<DateKey, number>>(userIds.map((id) => [id, new Map()]));
   for (const s of sessions) {
-    // نقسم الجلسة على الأيام اللي بتعدي عليها
+    const perDay = result.get(s.userId)!;
     const sEnd = s.endedAt ?? now;
-    for (let key = toDateKey(s.startedAt, tz); ; ) {
+    for (let key = toDateKey(s.startedAt < from ? from : s.startedAt, tz); ; ) {
       const r = dayRange(key, tz);
-      if (r.start >= sEnd || r.start >= end) break;
-      if (r.end > start) {
-        const ms = workedMs([s], r.start < start ? start : r.start, r.end > end ? end : r.end, now);
-        perDay.set(key, (perDay.get(key) ?? 0) + ms);
-        total += ms;
-      }
+      if (r.start >= sEnd || r.start >= to) break;
+      const ms = workedMs([s], r.start < from ? from : r.start, r.end > to ? to : r.end, now);
+      if (ms > 0) perDay.set(key, (perDay.get(key) ?? 0) + ms);
       key = toDateKey(r.end, tz);
     }
   }
-  return { workingDays, requiredMs: workingDays.length * dailyHours * HOUR_MS, workedMs: total, perDay };
+  return result;
+}
+
+/** أيام العمل في فترة (من غير الإجازة الأسبوعية والرسمية) ابتداءً من أول يوم شغل للموظف */
+export function employeeWorkingDays(
+  user: { hiredAt: Date | null; createdAt: Date },
+  days: DateKey[],
+  weekendDays: number[],
+  holidays: Set<DateKey>,
+  tz: string,
+) {
+  const startKey = user.hiredAt ? user.hiredAt.toISOString().slice(0, 10) : toDateKey(user.createdAt, tz);
+  return days.filter((k) => k >= startKey && !weekendDays.includes(weekdayOf(k)) && !holidays.has(k));
+}
+
+export async function holidaysBetween(fromKey: DateKey, toKey: DateKey) {
+  const rows = await db.holiday.findMany({ where: { date: { gte: new Date(`${fromKey}T00:00:00Z`), lte: new Date(`${toKey}T00:00:00Z`) } } });
+  return new Map(rows.map((h) => [h.date.toISOString().slice(0, 10), h.name]));
+}
+
+export function daysBetween(fromKey: DateKey, toKey: DateKey): DateKey[] {
+  const out: DateKey[] = [];
+  for (let k = fromKey; k <= toKey; k = addDays(k, 1)) out.push(k);
+  return out;
+}
+
+export type RangeSummary = {
+  userId: string;
+  dailyMs: number;
+  workingDays: DateKey[];
+  requiredMs: number;
+  workedMs: number;
+  perDay: Map<DateKey, number>;
+};
+
+/** المطلوب مقابل الفعلي لكل موظف في فترة (من يوم لحد يوم، شاملين) */
+export async function rangeSummary(userIds: string[], fromKey: DateKey, toKey: DateKey, now = new Date()): Promise<RangeSummary[]> {
+  const settings = await getSettings();
+  const tz = settings.general.timezone;
+  const [users, holidays] = await Promise.all([
+    db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, hiredAt: true, createdAt: true, profile: { select: { dailyHours: true } } } }),
+    holidaysBetween(fromKey, toKey),
+  ]);
+  const worked = await workedPerDay(userIds, startOfDay(fromKey, tz), startOfDay(addDays(toKey, 1), tz), tz, now);
+  const days = daysBetween(fromKey, toKey);
+  const holidaySet = new Set(holidays.keys());
+  return users.map((u) => {
+    const dailyMs = Number(u.profile?.dailyHours ?? settings.attendance.defaultDailyHours) * HOUR_MS;
+    const workingDays = employeeWorkingDays(u, days, settings.general.weekendDays, holidaySet, tz);
+    const perDay = worked.get(u.id) ?? new Map();
+    return {
+      userId: u.id,
+      dailyMs,
+      workingDays,
+      requiredMs: workingDays.length * dailyMs,
+      workedMs: [...perDay.values()].reduce((a, b) => a + b, 0),
+      perDay,
+    };
+  });
+}
+
+export type MonthSummary = RangeSummary;
+
+/** ملخص الشهر لموظف: المطلوب مقابل الفعلي (الحساب شهري صافي) */
+export async function monthSummary(userId: string, year: number, month: number, now = new Date()): Promise<MonthSummary> {
+  const days = daysInMonth(year, month);
+  const [summary] = await rangeSummary([userId], days[0], days[days.length - 1], now);
+  return summary;
 }

@@ -20,6 +20,8 @@ const ACTIONS: Record<string, string> = {
   "agent.device_registered": "تسجيل دخول من برنامج الديسكتوب",
   "agent.monitoring_consent": "الموافقة على المراقبة",
   "device.revoked": "إلغاء جهاز",
+  "category.set": "تصنيف برنامج/موقع",
+  "category.deleted": "حذف تصنيف",
 };
 
 export default async function AuditPage() {
@@ -52,7 +54,7 @@ export default async function AuditPage() {
                     <td className="whitespace-nowrap px-4 py-3 text-muted tabular-nums">{fmt.format(l.createdAt)}</td>
                     <td className="px-4 py-3">{l.actor?.name ?? "النظام"}</td>
                     <td className="px-4 py-3">{ACTIONS[l.action] ?? l.action}</td>
-                    <td className="px-4 py-3 text-muted">{l.targetType === "user" ? targets.get(l.targetId!) ?? "—" : l.targetId ?? "—"}</td>
+                    <td className="px-4 py-3 text-muted">{l.targetType === "user" ? targets.get(l.targetId!) ?? "—" : l.targetType === "device" ? "جهاز" : l.targetId ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>

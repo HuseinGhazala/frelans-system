@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/ui/card";
 import { AlertsForm, AttendanceForm, GeneralForm, HolidaysCard, PayrollForm, SmtpForm } from "@/components/settings/settings-forms";
+import { CategoriesManager } from "@/components/settings/categories";
+import { unclassifiedNames } from "@/lib/activity";
 import { db } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 
@@ -10,6 +12,7 @@ const tabs = [
   { id: "general", label: "عام" },
   { id: "attendance", label: "الحضور والمراقبة" },
   { id: "payroll", label: "المرتبات" },
+  { id: "categories", label: "تصنيف البرامج" },
   { id: "alerts", label: "التنبيهات" },
   { id: "email", label: "البريد الإلكتروني" },
 ] as const;
@@ -20,6 +23,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/admin/s
   const settings = await getSettings();
   const holidays = tab === "general" ? await db.holiday.findMany({ orderBy: { date: "asc" } }) : [];
   const { password, ...smtp } = settings.smtp;
+  const [rules, unclassified] =
+    tab === "categories" ? await Promise.all([db.appCategory.findMany({ orderBy: [{ category: "asc" }, { pattern: "asc" }] }), unclassifiedNames()]) : [[], []];
 
   return (
     <>
@@ -46,6 +51,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/admin/s
           )}
           {tab === "attendance" && <AttendanceForm s={settings.attendance} />}
           {tab === "payroll" && <PayrollForm s={settings.payroll} />}
+          {tab === "categories" && <CategoriesManager rules={rules} unclassified={unclassified} />}
           {tab === "alerts" && <AlertsForm s={settings.alerts} />}
           {tab === "email" && <SmtpForm s={{ ...smtp, hasPassword: Boolean(password) }} />}
         </div>

@@ -4,6 +4,8 @@ import { updateEmployee } from "@/app/actions/employees";
 import Link from "next/link";
 import { DateNav } from "@/components/day/date-nav";
 import { DayView } from "@/components/day/day-view";
+import { AttendanceGridView } from "@/components/reports/attendance-grid";
+import { attendanceGrid } from "@/lib/reports";
 import { EmployeeActions, RevokeDeviceButton } from "@/components/employees/employee-actions";
 import { EmployeeForm } from "@/components/employees/employee-form";
 import { Avatar, Badge, StatusBadge } from "@/components/ui/badge";
@@ -92,6 +94,9 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
         <StatCard label={diff >= 0 ? "زيادة" : "ناقص"} value={formatDuration(Math.abs(diff))} tone={diff >= 0 ? "success" : "danger"} hint="الحساب شهري: اليوم الناقص بيتعوض بيوم زيادة" />
         <StatCard label="أيام حضور" value={summary.perDay.size} />
       </div>
+      <Card className="p-5">
+        <AttendanceGridView grid={await attendanceGrid(year, month, [id])} compact />
+      </Card>
 
       </>
       )}

@@ -219,6 +219,20 @@ model Screenshot {
   @@index([takenAt])
 }
 
+enum Productivity {
+  PRODUCTIVE
+  NEUTRAL
+  UNPRODUCTIVE
+}
+
+/// تصنيف برنامج أو موقع (الاسم بحروف صغيرة، من غير .exe)
+model AppCategory {
+  id        String       @id @default(cuid())
+  pattern   String       @unique
+  category  Productivity
+  createdAt DateTime     @default(now())
+}
+
 model AuditLog {
   id         String   @id @default(cuid())
   actorId    String?
