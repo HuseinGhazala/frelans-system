@@ -32,7 +32,7 @@ docker compose up -d --build
 2. **الإعدادات ← عام:** اسم الشركة، والإجازة الأسبوعية، والإجازات الرسمية.
 3. **الإعدادات ← Trello:** لو هتستخدمه.
 4. **الموظفين:** ضيف الموظفين — كل واحد هيوصله رابط الدعوة.
-5. **برنامج الديسكتوب:** من GitHub ← Actions ← "Build Windows agent" (بعد ما تحط متغير `RASED_SERVER_URL` = `https://الدومين` في إعدادات المستودع ← Variables). ارفع الملف في GitHub Releases وحط رابطه في `AGENT_DOWNLOAD_URL` في `.env` وشغّل `docker compose up -d` تاني.
+5. **برنامج الديسكتوب:** من GitHub ← Actions ← "Build Windows agent" (بعد ما تحط متغير `RASED_SERVER_URL` = `https://الدومين` في إعدادات المستودع ← Variables). الـ workflow بينشر الملف في GitHub Releases باسم `Rased-Setup.exe`، وصفحة "تحميل البرنامج" بتستخدم رابط آخر نسخة تلقائي. (لو عاوز رابط تاني حطه في `AGENT_DOWNLOAD_URL` في `.env`.)
 
 ## التحديث لنسخة جديدة
 ```bash

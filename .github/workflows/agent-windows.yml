@@ -1,5 +1,7 @@
 # بيبني ملف تسطيب برنامج الديسكتوب لـ Windows (Rased-Setup-x.y.z.exe)
-# شغّله من تبويب Actions → "Build Windows agent" → Run workflow، وحمّل الملف من Artifacts.
+# شغّله من تبويب Actions → "Build Windows agent" → Run workflow.
+# بينشر الملف في GitHub Releases باسم ثابت Rased-Setup.exe، فرابط التحميل بيفضل واحد:
+# https://github.com/<owner>/<repo>/releases/latest/download/Rased-Setup.exe
 # رابط الموقع الافتراضي في البرنامج بييجي من متغير المستودع RASED_SERVER_URL (Settings → Variables).
 name: Build Windows agent
 
@@ -7,6 +9,9 @@ on:
   workflow_dispatch:
   push:
     tags: ["agent-v*"]
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -31,3 +36,15 @@ jobs:
           name: Rased-Windows
           path: apps/agent/release/*.exe
           if-no-files-found: error
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./apps/agent/package.json').version")
+          TAG="agent-v$VERSION"
+          cp apps/agent/release/Rased-Setup-$VERSION.exe apps/agent/release/Rased-Setup.exe
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "برنامج راصد $VERSION" --notes "ملف تسطيب برنامج راصد لـ Windows."
+          fi
+          gh release upload "$TAG" apps/agent/release/Rased-Setup.exe "apps/agent/release/Rased-Setup-$VERSION.exe" --clobber
