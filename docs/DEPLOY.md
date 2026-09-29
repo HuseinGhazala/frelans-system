@@ -55,3 +55,36 @@ cd rased && git pull && cd deploy && docker compose up -d --build
 - المهام الدورية: حط `DISABLE_INTERNAL_CRON=1` و`CRON_SECRET=<قيمة عشوائية>`، واعمل Cron يستدعي `GET /api/cron` بالهيدر `Authorization: Bearer <CRON_SECRET>` كل 5 دقايق (Vercel Cron في الخطة المدفوعة، أو cron-job.org مجانًا).
 - `APP_URL` = رابط الموقع، و`AGENT_DOWNLOAD_URL` = رابط تحميل البرنامج.
 - التطبيق للتحديثات على قاعدة البيانات: `pnpm --filter web db:deploy`.
+
+---
+
+## لو السيرفر عليه nginx شغال على 80/443 (زي سيرفر pixelcodes)
+
+بدل Caddy، بنشغّل الموقع على بورت داخلي ونوصّله من nginx:
+
+`deploy/docker-compose.override.yml` (على السيرفر بس، مش في Git):
+```yaml
+services:
+  caddy:
+    profiles: ["disabled"]
+  web:
+    ports:
+      - "127.0.0.1:8310:3000"
+```
+
+`/etc/nginx/sites-available/rased`:
+```nginx
+server {
+    server_name rased.pixelcodes.net;
+    client_max_body_size 5m;            # لقطات الشاشة
+    location / {
+        proxy_pass http://127.0.0.1:8310;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+وبعدين: `ln -s /etc/nginx/sites-available/rased /etc/nginx/sites-enabled/ && nginx -t && systemctl reload nginx && certbot --nginx -d rased.pixelcodes.net`
+
+التحديث: `cd ~/rased/deploy && git pull && docker compose up -d --build`
