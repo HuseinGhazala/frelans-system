@@ -1,0 +1,68 @@
+# تشغيل راصد على VPS: قاعدة البيانات + الموقع + Caddy (HTTPS تلقائي)
+# الخطوات كاملة في docs/DEPLOY.md
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rased
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?اكتب POSTGRES_PASSWORD في ملف .env}
+      POSTGRES_DB: rased
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rased"]
+      interval: 5s
+      retries: 10
+
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://rased:${POSTGRES_PASSWORD}@db:5432/rased
+      APP_URL: https://${DOMAIN:?اكتب DOMAIN في ملف .env}
+      AGENT_DOWNLOAD_URL: ${AGENT_DOWNLOAD_URL:-}
+      STORAGE_DRIVER: local
+      STORAGE_DIR: /data/storage
+    volumes:
+      - screenshots:/data/storage
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [web]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  # نسخة احتياطية يومية لقاعدة البيانات (آخر 14 يوم) في مجلد backups
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    depends_on: [db]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c 'while true; do
+        pg_dump -h db -U rased rased | gzip > /backups/rased-$$(date +%F).sql.gz;
+        find /backups -name "*.sql.gz" -mtime +14 -delete;
+        sleep 86400; done'
+
+volumes:
+  pgdata:
+  screenshots:
+  caddy_data:
+  caddy_config:

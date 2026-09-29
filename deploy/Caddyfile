@@ -1,0 +1,8 @@
+{$DOMAIN} {
+	encode gzip
+	# حد أقصى لحجم الطلب (لقطات الشاشة)
+	request_body {
+		max_size 5MB
+	}
+	reverse_proxy web:3000
+}

@@ -7,7 +7,7 @@ import { CATEGORY_LABEL } from "@/lib/productivity";
 const isKey = (v: string | null): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 const STATUS_LABEL: Record<string, string> = {
-  full: "كمّل", short: "ناقص", absent: "غياب", extra: "شغل في إجازة", weekend: "إجازة", holiday: "رسمية", future: "", "not-started": "",
+  full: "كمّل", short: "ناقص", absent: "غياب", leave: "إجازة", extra: "شغل في إجازة", weekend: "إجازة", holiday: "رسمية", future: "", "not-started": "",
 };
 
 export async function GET(request: NextRequest) {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
   const rows = await hoursReport(from, to);
   return csvResponse(`hours-${from}_${to}.csv`, [
-    ["الموظف", "أيام العمل", "أيام الحضور", "أيام الغياب", "الساعات المطلوبة", "الساعات الفعلية", "الفرق", "خمول (ساعة)", "النشاط %", "الإنتاجية %"],
-    ...rows.map((r) => [r.name, r.workingDays, r.presentDays, r.absentDays, hours(r.requiredMs), hours(r.workedMs), hours(r.diffMs), hours(r.idleMs), r.activityPercent, r.productivityPercent]),
+    ["الموظف", "أيام العمل", "أيام الحضور", "أيام الإجازة", "أيام الغياب", "الساعات المطلوبة", "الساعات الفعلية", "إجازة مدفوعة (ساعة)", "الفرق", "خمول (ساعة)", "النشاط %", "الإنتاجية %"],
+    ...rows.map((r) => [r.name, r.workingDays, r.presentDays, r.leaveDays, r.absentDays, hours(r.requiredMs), hours(r.workedMs), hours(r.paidLeaveMs), hours(r.diffMs), hours(r.idleMs), r.activityPercent, r.productivityPercent]),
   ]);
 }

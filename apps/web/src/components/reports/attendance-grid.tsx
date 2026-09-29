@@ -5,6 +5,7 @@ const CELL: Record<DayStatus, { cls: string; label: string }> = {
   full: { cls: "bg-success text-white", label: "كمّل ساعاته" },
   short: { cls: "bg-warning text-white", label: "ناقص" },
   absent: { cls: "bg-danger text-white", label: "غياب" },
+  leave: { cls: "bg-[#8b5cf6] text-white", label: "إجازة" },
   extra: { cls: "bg-info text-white", label: "شغل في يوم إجازة" },
   weekend: { cls: "bg-surface-2 text-muted", label: "إجازة أسبوعية" },
   holiday: { cls: "bg-primary-soft text-primary", label: "إجازة رسمية" },
@@ -14,7 +15,7 @@ const CELL: Record<DayStatus, { cls: string; label: string }> = {
 const DAY_LETTER = ["ح", "ن", "ث", "ر", "خ", "ج", "س"];
 
 export function AttendanceGridView({ grid, compact = false }: { grid: AttendanceGrid; compact?: boolean }) {
-  const legend = (["full", "short", "absent", "extra", "weekend", "holiday"] as DayStatus[]).map((s) => (
+  const legend = (["full", "short", "absent", "leave", "extra", "weekend", "holiday"] as DayStatus[]).map((s) => (
     <span key={s} className="flex items-center gap-1.5">
       <span className={`h-3 w-3 rounded-sm ${CELL[s].cls}`} />
       {CELL[s].label}

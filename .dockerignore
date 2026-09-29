@@ -1,0 +1,9 @@
+**/node_modules
+**/.next
+**/dist
+**/release
+**/.env
+**/.env.local
+apps/web/storage
+apps/agent
+.git

@@ -25,6 +25,16 @@ const ACTIONS: Record<string, string> = {
   "trello.connected": "ربط Trello",
   "trello.disconnected": "إلغاء ربط Trello",
   "trello.boards_selected": "اختيار بوردات Trello",
+  "leave.requested": "طلب إجازة",
+  "leave.cancelled": "إلغاء طلب إجازة",
+  "leave.approved": "الموافقة على إجازة",
+  "leave.rejected": "رفض إجازة",
+  "payroll.refreshed": "حساب مسودة المرتبات",
+  "payroll.overtime_approved": "اعتماد ساعات إضافي",
+  "payroll.adjustment_added": "إضافة تعديل على مرتب",
+  "payroll.adjustment_removed": "حذف تعديل من مرتب",
+  "payroll.approved": "اعتماد مرتبات الشهر",
+  "payroll.reopened": "إلغاء اعتماد المرتبات",
 };
 
 export default async function AuditPage() {

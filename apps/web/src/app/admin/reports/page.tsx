@@ -113,7 +113,7 @@ async function HoursTab({ from, to }: { from: string; to: string }) {
           <table className="w-full text-sm">
             <thead className="bg-surface-2 text-right text-xs text-muted">
               <tr>
-                {["الموظف", "أيام العمل", "حضر", "غياب", "المطلوب", "الفعلي", "الفرق", "خمول", "النشاط", "الإنتاجية"].map((h) => (
+                {["الموظف", "أيام العمل", "حضر", "إجازة", "غياب", "المطلوب", "الفعلي", "الفرق", "خمول", "النشاط", "الإنتاجية"].map((h) => (
                   <th key={h} className="whitespace-nowrap px-4 py-3 font-medium">{h}</th>
                 ))}
               </tr>
@@ -126,9 +126,10 @@ async function HoursTab({ from, to }: { from: string; to: string }) {
                   </td>
                   <td className="px-4 py-3">{r.workingDays}</td>
                   <td className="px-4 py-3">{r.presentDays}</td>
+                  <td className="px-4 py-3">{r.leaveDays}</td>
                   <td className={`px-4 py-3 ${r.absentDays ? "text-danger" : ""}`}>{r.absentDays}</td>
                   <td className="px-4 py-3">{formatDuration(r.requiredMs)}</td>
-                  <td className="px-4 py-3">{formatDuration(r.workedMs)}</td>
+                  <td className="px-4 py-3" title={r.paidLeaveMs ? `+ ${formatDuration(r.paidLeaveMs)} إجازة مدفوعة` : undefined}>{formatDuration(r.workedMs)}</td>
                   <td className={`px-4 py-3 ${r.diffMs >= 0 ? "text-success" : "text-danger"}`} dir="ltr">{r.diffMs >= 0 ? "+" : ""}{formatDuration(r.diffMs)}</td>
                   <td className="px-4 py-3 text-idle">{formatDuration(r.idleMs)}</td>
                   <td className="px-4 py-3">{pct(r.activityPercent)}</td>

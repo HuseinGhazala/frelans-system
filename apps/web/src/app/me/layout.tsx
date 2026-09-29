@@ -5,9 +5,9 @@ import { getSettings } from "@/lib/settings";
 const nav: NavItem[] = [
   { href: "/me", label: "الرئيسية", icon: "Home", exact: true },
   { href: "/me/activity", label: "نشاطي", icon: "Activity" },
-  { href: "/me/leaves", label: "إجازاتي", icon: "CalendarDays", soon: true },
-  { href: "/me/payslip", label: "كشف المرتب", icon: "Wallet", soon: true },
-  { href: "/me/download", label: "تحميل البرنامج", icon: "Download", soon: true },
+  { href: "/me/leaves", label: "إجازاتي", icon: "CalendarDays" },
+  { href: "/me/payslip", label: "كشف المرتب", icon: "Wallet" },
+  { href: "/me/download", label: "تحميل البرنامج", icon: "Download" },
 ];
 
 export default async function EmployeeLayout({ children }: { children: React.ReactNode }) {

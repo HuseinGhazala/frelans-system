@@ -14,9 +14,11 @@ export type HoursRow = {
   name: string;
   workingDays: number;
   presentDays: number;
+  leaveDays: number;
   absentDays: number;
   requiredMs: number;
   workedMs: number;
+  paidLeaveMs: number;
   diffMs: number;
   idleMs: number;
   activityPercent: number | null;
@@ -51,10 +53,12 @@ export async function hoursReport(fromKey: DateKey, toKey: DateKey, now = new Da
       name: e.name,
       workingDays: s.workingDays.length,
       presentDays: s.perDay.size,
-      absentDays: pastWorking.filter((k) => !s.perDay.has(k)).length,
+      leaveDays: s.leaveDays.size,
+      absentDays: pastWorking.filter((k) => !s.perDay.has(k) && !s.leaveDays.has(k)).length,
       requiredMs: s.requiredMs,
       workedMs: s.workedMs,
-      diffMs: s.workedMs - s.requiredMs,
+      paidLeaveMs: s.paidLeaveMs,
+      diffMs: s.workedMs + s.paidLeaveMs - s.requiredMs,
       idleMs: idleByUser.get(e.id) ?? 0,
       activityPercent: a.activityPercent,
       productivityPercent: a.productivityPercent,
@@ -62,7 +66,7 @@ export async function hoursReport(fromKey: DateKey, toKey: DateKey, now = new Da
   });
 }
 
-export type DayStatus = "full" | "short" | "absent" | "weekend" | "holiday" | "future" | "not-started" | "extra";
+export type DayStatus = "full" | "short" | "absent" | "leave" | "weekend" | "holiday" | "future" | "not-started" | "extra";
 
 export type AttendanceGrid = {
   days: DateKey[];
@@ -97,6 +101,7 @@ export async function attendanceGrid(year: number, month: number, userIds?: stri
           if (key < startKey) status = "not-started";
           else if (holidays.has(key)) status = worked ? "extra" : "holiday";
           else if (settings.general.weekendDays.includes(weekdayOf(key))) status = worked ? "extra" : "weekend";
+          else if (s.leaveDays.has(key)) status = "leave";
           else if (key > today) status = "future";
           else if (!working.has(key)) status = "weekend";
           else if (worked === 0) status = key === today ? "future" : "absent";

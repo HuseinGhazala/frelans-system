@@ -26,17 +26,20 @@ import { cn } from "@/lib/utils";
 
 const icons = { Home, Users, Settings, ClipboardList, CalendarDays, Wallet, Bell, FileText, Download, Activity, BarChart3, ListChecks };
 export type IconName = keyof typeof icons;
-export type NavItem = { href: string; label: string; icon: IconName; soon?: boolean; exact?: boolean };
+export type NavItem = { href: string; label: string; icon: IconName; soon?: boolean; exact?: boolean; badge?: number };
 
 export function AppShell({
   nav,
   user,
   companyName,
+  alertsBadge,
   children,
 }: {
   nav: NavItem[];
   user: { name: string; email: string; roleLabel: string };
   companyName: string;
+  /** عدد التنبيهات غير المقروءة (للأدمن) — بيظهر كجرس في الموبايل */
+  alertsBadge?: number;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -78,7 +81,12 @@ export function AppShell({
                 aria-current={active ? "page" : undefined}
               >
                 <Icon size={18} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.badge ? (
+                  <span className="min-w-5 rounded-full bg-danger px-1.5 text-center text-[11px] font-semibold leading-5 text-white tabular-nums">
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                ) : null}
               </Link>
             </li>
           );
@@ -111,7 +119,14 @@ export function AppShell({
           <Menu size={20} />
         </button>
         <span className="font-bold">راصد</span>
-        <span className="w-9" />
+        {alertsBadge !== undefined ? (
+          <Link href="/admin/alerts" className="relative rounded-lg p-2 hover:bg-surface-2" aria-label="التنبيهات">
+            <Bell size={20} />
+            {alertsBadge > 0 && <span className="absolute left-1 top-1 h-2.5 w-2.5 rounded-full bg-danger" />}
+          </Link>
+        ) : (
+          <span className="w-9" />
+        )}
       </header>
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">

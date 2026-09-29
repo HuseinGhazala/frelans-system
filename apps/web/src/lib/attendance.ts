@@ -1,5 +1,7 @@
 import "server-only";
+import type { LeaveType } from "@/generated/prisma/enums";
 import { db } from "./db";
+import { approvedLeaveDays } from "./leaves";
 import { getSettings } from "./settings";
 import { addDays, dayRange, daysInMonth, HOUR_MS, startOfDay, toDateKey, weekdayOf, workedMs, type DateKey } from "./time";
 
@@ -115,6 +117,11 @@ export type RangeSummary = {
   requiredMs: number;
   workedMs: number;
   perDay: Map<DateKey, number>;
+  /** أيام الإجازات المعتمدة (أيام العمل بس) */
+  leaveDays: Map<DateKey, LeaveType>;
+  /** ساعات الإجازات المدفوعة اللي بتتحسب كشغل */
+  paidLeaveMs: number;
+  unpaidLeaveDays: number;
 };
 
 /** المطلوب مقابل الفعلي لكل موظف في فترة (من يوم لحد يوم، شاملين) */
@@ -125,13 +132,25 @@ export async function rangeSummary(userIds: string[], fromKey: DateKey, toKey: D
     db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, hiredAt: true, createdAt: true, profile: { select: { dailyHours: true } } } }),
     holidaysBetween(fromKey, toKey),
   ]);
-  const worked = await workedPerDay(userIds, startOfDay(fromKey, tz), startOfDay(addDays(toKey, 1), tz), tz, now);
+  const [worked, leaves] = await Promise.all([
+    workedPerDay(userIds, startOfDay(fromKey, tz), startOfDay(addDays(toKey, 1), tz), tz, now),
+    approvedLeaveDays(userIds, fromKey, toKey),
+  ]);
   const days = daysBetween(fromKey, toKey);
   const holidaySet = new Set(holidays.keys());
   return users.map((u) => {
     const dailyMs = Number(u.profile?.dailyHours ?? settings.attendance.defaultDailyHours) * HOUR_MS;
     const workingDays = employeeWorkingDays(u, days, settings.general.weekendDays, holidaySet, tz);
+    const working = new Set(workingDays);
     const perDay = worked.get(u.id) ?? new Map();
+    const leaveDays = new Map([...(leaves.get(u.id) ?? new Map())].filter(([k]) => working.has(k)));
+    // يوم الإجازة المدفوعة بيتحسب كأنه اشتغل ساعاته (من غير ما يتحسب مرتين لو اشتغل فيه)
+    let paidLeaveMs = 0;
+    let unpaidLeaveDays = 0;
+    for (const [k, type] of leaveDays) {
+      if (type === "UNPAID") unpaidLeaveDays++;
+      else paidLeaveMs += Math.max(0, dailyMs - (perDay.get(k) ?? 0));
+    }
     return {
       userId: u.id,
       dailyMs,
@@ -139,6 +158,9 @@ export async function rangeSummary(userIds: string[], fromKey: DateKey, toKey: D
       requiredMs: workingDays.length * dailyMs,
       workedMs: [...perDay.values()].reduce((a, b) => a + b, 0),
       perDay,
+      leaveDays,
+      paidLeaveMs,
+      unpaidLeaveDays,
     };
   });
 }
