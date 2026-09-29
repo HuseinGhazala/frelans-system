@@ -20,7 +20,7 @@ function setup(initial: Partial<ServerState> = {}) {
   let offline = false;
   const api: Api = {
     login: vi.fn(async () => ({ token: "tok", state: server })),
-    state: vi.fn(async () => server),
+    state: vi.fn(async () => ({ ...server, serverTime: new Date().toISOString() })),
     consent: vi.fn(async () => (server = { ...server, consentRequired: false })),
     sync: vi.fn(async (body) => {
       if (offline) throw new Error("network");
@@ -90,12 +90,13 @@ function setup(initial: Partial<ServerState> = {}) {
 
 describe("Controller", () => {
   it("captures a screenshot while working and uploads it on sync", async () => {
-    vi.useFakeTimers({ now: Date.parse("2026-10-01T09:00:00Z") });
+    vi.useFakeTimers({ now: Date.parse("2026-10-01T09:00:00Z"), toFake: ["Date"] });
     try {
       const t = setup();
       await t.c.syncNow();
       await t.c.checkIn();
-      vi.setSystemTime(Date.now() + 11 * 60_000);
+      // آخر الفترة الأولى: اللقطة العشوائية لازم تكون اتاخدت قبلها
+      vi.setSystemTime(Date.now() + 10 * 60_000 - 5_000);
       t.c.tickIdle();
       await vi.waitFor(() => expect(t.shotsMap.size).toBe(1));
       await t.c.syncNow();
