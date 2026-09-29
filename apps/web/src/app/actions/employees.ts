@@ -148,3 +148,11 @@ export async function resendAccessLink(userId: string): Promise<ActionState> {
     ? { success: `تم إرسال الرابط على ${user.email}` }
     : { success: "الإيميل مش متظبط، انسخ الرابط وابعته للموظف بنفسك:", link: result.url };
 }
+
+/** إلغاء جهاز: البرنامج على الجهاز ده هيطلب تسجيل دخول تاني */
+export async function revokeDevice(deviceId: string) {
+  const admin = await requireAdmin();
+  const device = await db.device.update({ where: { id: deviceId }, data: { revokedAt: new Date(), idleSince: null } });
+  await audit(admin.id, "device.revoked", { type: "user", id: device.userId }, { device: device.name });
+  revalidatePath(`/admin/employees/${device.userId}`);
+}

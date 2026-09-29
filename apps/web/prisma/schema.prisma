@@ -13,36 +13,40 @@ enum Role {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  name         String
-  phone        String?
-  jobTitle     String?
-  role         Role      @default(EMPLOYEE)
-  passwordHash String?
-  active       Boolean   @default(true)
-  hiredAt      DateTime? @db.Date
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  name                String
+  phone               String?
+  jobTitle            String?
+  role                Role      @default(EMPLOYEE)
+  passwordHash        String?
+  active              Boolean   @default(true)
+  hiredAt             DateTime? @db.Date
+  /// وقت موافقة الموظف على المراقبة من برنامج الديسكتوب
+  monitoringConsentAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   profile      EmployeeProfile?
   authSessions AuthSession[]
   authTokens   AuthToken[]
   workSessions WorkSession[]
   auditLogs    AuditLog[]
+  devices      Device[]
+  activity     ActivityMinute[]
 }
 
 /// إعدادات الموظف. الحقول الاختيارية الفاضية بتاخد القيمة من الإعدادات العامة.
 model EmployeeProfile {
-  userId                String  @id
-  user                  User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  monthlySalary         Decimal @db.Decimal(12, 2)
-  dailyHours            Decimal @default(8) @db.Decimal(4, 2)
+  userId                String   @id
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthlySalary         Decimal  @db.Decimal(12, 2)
+  dailyHours            Decimal  @default(8) @db.Decimal(4, 2)
   screenshotIntervalMin Int?
   blurScreenshots       Boolean?
   idleThresholdMin      Int?
-  annualLeaveDays       Int     @default(21)
-  casualLeaveDays       Int     @default(6)
+  annualLeaveDays       Int      @default(21)
+  casualLeaveDays       Int      @default(6)
   trelloMemberId        String?
 }
 
@@ -98,18 +102,44 @@ enum SessionEndReason {
   MANUAL
   AUTO_IDLE
   DAY_END
+  /// البرنامج بطّل يبعت (الجهاز اتقفل أو النت فصل لفترة طويلة)
+  AGENT_LOST
+}
+
+/// جهاز متسجل عليه برنامج الديسكتوب
+model Device {
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  os         String
+  appVersion String?
+  tokenHash  String           @unique
+  lastSeenAt DateTime?
+  /// لو الموظف خامل دلوقتي: من إمتى
+  idleSince  DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime         @default(now())
+  sessions   WorkSession[]
+  events     ProcessedEvent[]
+
+  @@index([userId])
 }
 
 /// جلسة عمل: من Check-in لحد Check-out
 model WorkSession {
-  id        String            @id @default(cuid())
-  userId    String
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  source    SessionSource
-  startedAt DateTime
-  endedAt   DateTime?
-  endReason SessionEndReason?
-  breaks    Break[]
+  id          String            @id @default(cuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source      SessionSource
+  deviceId    String?
+  device      Device?           @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  startedAt   DateTime
+  endedAt     DateTime?
+  endReason   SessionEndReason?
+  breaks      Break[]
+  idlePeriods IdlePeriod[]
+  activity    ActivityMinute[]
 
   @@index([userId, startedAt])
 }
@@ -121,6 +151,46 @@ model Break {
   startedAt DateTime
   endedAt   DateTime?
 
+  @@index([sessionId])
+}
+
+/// أحداث البرنامج اللي اتنفذت — عشان لو الحدث اتبعت مرتين (بعد قطع النت) ما يتنفذش تاني
+model ProcessedEvent {
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  eventId   String
+  createdAt DateTime @default(now())
+
+  @@id([deviceId, eventId])
+}
+
+/// فترة خمول (مفيش نشاط أكتر من حد الخمول) — ما بتتحسبش ساعات عمل
+model IdlePeriod {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   WorkSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  startedAt DateTime
+  endedAt   DateTime
+
+  @@unique([sessionId, startedAt])
+}
+
+/// ملخص النشاط لكل دقيقة: أعداد بس، من غير أي محتوى اتكتب
+model ActivityMinute {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId String
+  session   WorkSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  minute    DateTime
+  keyboard  Int         @default(0)
+  mouse     Int         @default(0)
+  app       String?
+  title     String?
+  domain    String?
+  idle      Boolean     @default(false)
+
+  @@unique([userId, minute])
   @@index([sessionId])
 }
 

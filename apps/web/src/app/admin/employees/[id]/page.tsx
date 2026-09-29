@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { updateEmployee } from "@/app/actions/employees";
-import { EmployeeActions } from "@/components/employees/employee-actions";
+import { DayActivityCard } from "@/components/attendance/day-activity";
+import { EmployeeActions, RevokeDeviceButton } from "@/components/employees/employee-actions";
 import { EmployeeForm } from "@/components/employees/employee-form";
 import { Avatar, Badge, StatusBadge } from "@/components/ui/badge";
 import { Card, CardHeader, PageHeader, StatCard } from "@/components/ui/card";
-import { getOpenSession, liveStatusOf, monthSummary } from "@/lib/attendance";
+import { dayActivity } from "@/lib/activity";
+import { closeStaleAgentSessions, getOpenSession, liveStatusOf, monthSummary } from "@/lib/attendance";
 import { db } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { formatDuration, parseDateKey, toDateKey } from "@/lib/time";
@@ -21,7 +23,14 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
   const settings = await getSettings();
   const tz = settings.general.timezone;
   const { year, month } = parseDateKey(toDateKey(new Date(), tz));
-  const [open, summary] = await Promise.all([getOpenSession(id), monthSummary(id, year, month)]);
+  await closeStaleAgentSessions();
+  const [open, summary, activity, devices] = await Promise.all([
+    getOpenSession(id),
+    monthSummary(id, year, month),
+    dayActivity(id, tz),
+    db.device.findMany({ where: { userId: id, revokedAt: null }, orderBy: { lastSeenAt: "desc" } }),
+  ]);
+  const seenFmt = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { dateStyle: "medium", timeStyle: "short", timeZone: tz });
   const diff = summary.workedMs - summary.requiredMs;
   const p = employee.profile;
   const monthName = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, 1)));
@@ -48,6 +57,10 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
         <StatCard label="الساعات الفعلية" value={formatDuration(summary.workedMs)} />
         <StatCard label={diff >= 0 ? "زيادة" : "ناقص"} value={formatDuration(Math.abs(diff))} tone={diff >= 0 ? "success" : "danger"} hint="الحساب شهري: اليوم الناقص بيتعوض بيوم زيادة" />
         <StatCard label="أيام حضور" value={summary.perDay.size} />
+      </div>
+
+      <div className="mb-8">
+        <DayActivityCard a={activity} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -79,8 +92,33 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
                 <span className="text-muted">الحالة: </span>
                 {!employee.active ? "موقوف" : employee.passwordHash ? "نشط" : "في انتظار قبول الدعوة"}
               </p>
+              <p>
+                <span className="text-muted">الموافقة على المراقبة: </span>
+                {employee.monitoringConsentAt ? seenFmt.format(employee.monitoringConsentAt) : "لسه ما وافقش (بتظهر أول مرة يفتح البرنامج)"}
+              </p>
               <EmployeeActions userId={id} active={employee.active} hasPassword={Boolean(employee.passwordHash)} />
             </div>
+          </Card>
+          <Card>
+            <CardHeader title="الأجهزة" description="الأجهزة اللي عليها برنامج الديسكتوب" />
+            {devices.length === 0 ? (
+              <p className="p-5 text-sm text-muted">لسه ما سجلش دخول من البرنامج على أي جهاز.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {devices.map((d) => (
+                  <li key={d.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium" dir="auto">{d.name}</span>
+                      <span className="block text-xs text-muted">
+                        {d.os}
+                        {d.appVersion ? ` • v${d.appVersion}` : ""} • آخر ظهور {d.lastSeenAt ? seenFmt.format(d.lastSeenAt) : "—"}
+                      </span>
+                    </span>
+                    <RevokeDeviceButton deviceId={d.id} name={d.name} />
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         </div>
       </div>

@@ -17,6 +17,9 @@ const ACTIONS: Record<string, string> = {
   "settings.updated": "تعديل الإعدادات",
   "holiday.added": "إضافة إجازة رسمية",
   "holiday.deleted": "حذف إجازة رسمية",
+  "agent.device_registered": "تسجيل دخول من برنامج الديسكتوب",
+  "agent.monitoring_consent": "الموافقة على المراقبة",
+  "device.revoked": "إلغاء جهاز",
 };
 
 export default async function AuditPage() {

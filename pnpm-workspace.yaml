@@ -7,6 +7,9 @@ onlyBuiltDependencies:
   - "@prisma/engines"
   - prisma
   - esbuild
+  - electron
+  - get-windows
+  - uiohook-napi
 
 ignoredBuiltDependencies:
   - sharp

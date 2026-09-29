@@ -88,6 +88,36 @@ describe("workedMs", () => {
   });
 });
 
+describe("workedMs with idle periods", () => {
+  const { start, end } = dayRange("2026-10-01", TZ);
+  const at = (h: number, m = 0) => new Date(start.getTime() + h * HOUR_MS + m * 60000);
+
+  it("does not count idle time", () => {
+    const ms = workedMs(
+      [{ startedAt: at(9), endedAt: at(12), breaks: [], idlePeriods: [{ startedAt: at(10), endedAt: at(10, 20) }] }],
+      start,
+      end,
+    );
+    expect(ms).toBe(3 * HOUR_MS - 20 * 60000);
+  });
+
+  it("does not double-subtract idle that overlaps a break", () => {
+    const ms = workedMs(
+      [
+        {
+          startedAt: at(9),
+          endedAt: at(12),
+          breaks: [{ startedAt: at(10), endedAt: at(10, 30) }],
+          idlePeriods: [{ startedAt: at(10, 20), endedAt: at(10, 40) }],
+        },
+      ],
+      start,
+      end,
+    );
+    expect(ms).toBe(3 * HOUR_MS - 40 * 60000);
+  });
+});
+
 describe("formatDuration", () => {
   it("formats hours and minutes", () => {
     expect(formatDuration(5 * HOUR_MS + 7 * 60000)).toBe("5:07");

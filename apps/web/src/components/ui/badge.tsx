@@ -22,6 +22,7 @@ export function Badge({ tone = "neutral", dot, children, className }: { tone?: T
 
 const statusMeta: Record<LiveStatus, { label: string; tone: Tone }> = {
   WORKING: { label: "يعمل الآن", tone: "success" },
+  IDLE: { label: "خامل", tone: "danger" },
   ON_BREAK: { label: "في استراحة", tone: "warning" },
   OFFLINE: { label: "غير متصل", tone: "neutral" },
 };
@@ -37,7 +38,7 @@ export function StatusBadge({ status }: { status: LiveStatus }) {
 
 export function Avatar({ name, status, size = 40 }: { name: string; status?: LiveStatus; size?: number }) {
   const initials = name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("");
-  const dot = status && { WORKING: "bg-success", ON_BREAK: "bg-warning", OFFLINE: "bg-muted" }[status];
+  const dot = status && { WORKING: "bg-success", IDLE: "bg-idle", ON_BREAK: "bg-warning", OFFLINE: "bg-muted" }[status];
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
       <span className="flex h-full w-full items-center justify-center rounded-full bg-primary-soft text-sm font-semibold text-primary">{initials}</span>

@@ -3,26 +3,59 @@ import { db } from "./db";
 import { getSettings } from "./settings";
 import { dayRange, HOUR_MS, monthRange, toDateKey, workedMs, workingDaysInMonth, type DateKey } from "./time";
 
-export type LiveStatus = "WORKING" | "ON_BREAK" | "OFFLINE";
+export type LiveStatus = "WORKING" | "IDLE" | "ON_BREAK" | "OFFLINE";
+
+/** لو البرنامج ما بعتش حاجة المدة دي، الجلسة بتتقفل عند آخر ظهور */
+export const AGENT_LOST_AFTER_MS = 10 * 60_000;
+
+/**
+ * بيقفل جلسات البرنامج اللي الجهاز بتاعها بطّل يبعت (اتقفل فجأة أو النت فصل)،
+ * عند آخر مرة ظهر فيها، عشان الوقت ده ما يتحسبش.
+ */
+export async function closeStaleAgentSessions(now = new Date()) {
+  const stale = await db.workSession.findMany({
+    where: {
+      endedAt: null,
+      source: "AGENT",
+      OR: [{ device: { lastSeenAt: { lt: new Date(now.getTime() - AGENT_LOST_AFTER_MS) } } }, { deviceId: null }, { device: { revokedAt: { not: null } } }],
+    },
+    include: { device: true },
+  });
+  for (const s of stale) {
+    const endedAt = new Date(Math.max(s.startedAt.getTime(), (s.device?.lastSeenAt ?? s.startedAt).getTime()));
+    await db.$transaction([
+      db.break.updateMany({ where: { sessionId: s.id, endedAt: null }, data: { endedAt } }),
+      db.workSession.update({ where: { id: s.id }, data: { endedAt, endReason: "AGENT_LOST" } }),
+    ]);
+  }
+}
 
 export async function getOpenSession(userId: string) {
   return db.workSession.findFirst({
     where: { userId, endedAt: null },
-    include: { breaks: { where: { endedAt: null } } },
+    include: { breaks: { where: { endedAt: null } }, device: true },
     orderBy: { startedAt: "desc" },
   });
 }
 
 export function liveStatusOf(open: Awaited<ReturnType<typeof getOpenSession>>): LiveStatus {
   if (!open) return "OFFLINE";
-  return open.breaks.length > 0 ? "ON_BREAK" : "WORKING";
+  if (open.breaks.length > 0) return "ON_BREAK";
+  if (open.source === "AGENT" && open.device?.idleSince) return "IDLE";
+  return "WORKING";
 }
 
-async function sessionsBetween(userIds: string[], from: Date, to: Date) {
-  return db.workSession.findMany({
+export async function sessionsBetween(userIds: string[], from: Date, to: Date) {
+  const sessions = await db.workSession.findMany({
     where: { userId: { in: userIds }, startedAt: { lt: to }, OR: [{ endedAt: null }, { endedAt: { gt: from } }] },
-    include: { breaks: true },
+    include: { breaks: true, idlePeriods: true, device: { select: { idleSince: true } } },
   });
+  // الخمول الحالي (لسه ما خلصش) ما يتحسبش برضه
+  return sessions.map((s) =>
+    !s.endedAt && s.device?.idleSince
+      ? { ...s, idlePeriods: [...s.idlePeriods, { startedAt: s.device.idleSince, endedAt: null }] }
+      : s,
+  );
 }
 
 /** ساعات اليوم لمجموعة موظفين (بالمللي ثانية) */

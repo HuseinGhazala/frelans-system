@@ -102,28 +102,39 @@ export function workingDaysInMonth(
 }
 
 export type Interval = { startedAt: Date; endedAt: Date | null };
-export type SessionWithBreaks = Interval & { breaks: Interval[] };
+/** جلسة عمل ومعاها الفترات اللي ما بتتحسبش: الاستراحات وفترات الخمول */
+export type SessionWithBreaks = Interval & { breaks: Interval[]; idlePeriods?: Interval[] };
 
-function overlapMs(a: Interval, from: Date, to: Date, now: Date): number {
-  const s = Math.max(a.startedAt.getTime(), from.getTime());
-  const e = Math.min((a.endedAt ?? now).getTime(), to.getTime());
-  return Math.max(0, e - s);
-}
-
-/** إجمالي وقت العمل الفعلي (الجلسات ناقص الاستراحات) داخل فترة معينة */
+/**
+ * إجمالي وقت العمل الفعلي داخل فترة معينة:
+ * وقت الجلسات ناقص (اتحاد) الاستراحات وفترات الخمول، عشان لو اتداخلوا ما يتخصموش مرتين.
+ */
 export function workedMs(sessions: SessionWithBreaks[], from: Date, to: Date, now: Date = new Date()): number {
   let total = 0;
   for (const s of sessions) {
-    total += overlapMs(s, from, to, now);
-    for (const b of s.breaks) {
-      // الاستراحة محسوبة بس جوه حدود الجلسة
-      const bEnd = b.endedAt ?? s.endedAt ?? now;
-      const clipped: Interval = {
-        startedAt: new Date(Math.max(b.startedAt.getTime(), s.startedAt.getTime())),
-        endedAt: new Date(Math.min(bEnd.getTime(), (s.endedAt ?? now).getTime())),
-      };
-      total -= overlapMs(clipped, from, to, now);
+    const winStart = Math.max(s.startedAt.getTime(), from.getTime());
+    const winEnd = Math.min((s.endedAt ?? now).getTime(), to.getTime());
+    if (winEnd <= winStart) continue;
+
+    const excl = [...s.breaks, ...(s.idlePeriods ?? [])]
+      .map((x) => [Math.max(x.startedAt.getTime(), winStart), Math.min((x.endedAt ?? s.endedAt ?? now).getTime(), winEnd)] as const)
+      .filter(([a, b]) => b > a)
+      .sort((x, y) => x[0] - y[0]);
+
+    let excluded = 0;
+    let curStart = -1;
+    let curEnd = -1;
+    for (const [a, b] of excl) {
+      if (a > curEnd) {
+        excluded += curEnd - curStart;
+        curStart = a;
+        curEnd = b;
+      } else if (b > curEnd) {
+        curEnd = b;
+      }
     }
+    excluded += curEnd - curStart;
+    total += winEnd - winStart - excluded;
   }
   return Math.max(0, total);
 }

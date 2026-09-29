@@ -1,0 +1,33 @@
+# بيبني ملف تسطيب برنامج الديسكتوب لـ Windows (Rased-Setup-x.y.z.exe)
+# شغّله من تبويب Actions → "Build Windows agent" → Run workflow، وحمّل الملف من Artifacts.
+# رابط الموقع الافتراضي في البرنامج بييجي من متغير المستودع RASED_SERVER_URL (Settings → Variables).
+name: Build Windows agent
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["agent-v*"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build installer
+        working-directory: apps/agent
+        env:
+          NODE_ENV: production
+          RASED_SERVER_URL: ${{ vars.RASED_SERVER_URL || 'http://localhost:3000' }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm dist:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rased-Windows
+          path: apps/agent/release/*.exe
+          if-no-files-found: error

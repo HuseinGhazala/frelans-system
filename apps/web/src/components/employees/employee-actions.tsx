@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Copy, Check } from "lucide-react";
-import { resendAccessLink, setEmployeeActive } from "@/app/actions/employees";
+import { resendAccessLink, revokeDevice, setEmployeeActive } from "@/app/actions/employees";
 import type { ActionState } from "@/app/actions/types";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
@@ -56,5 +56,22 @@ export function EmployeeActions({ userId, active, hasPassword }: { userId: strin
       <FormMessage state={state} />
       {state?.link && <CopyLink link={state.link} />}
     </div>
+  );
+}
+
+export function RevokeDeviceButton({ deviceId, name }: { deviceId: string; name: string }) {
+  const [pending, start] = useTransition();
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="text-danger"
+      disabled={pending}
+      onClick={() => {
+        if (confirm(`إلغاء جهاز "${name}"؟ البرنامج عليه هيطلب تسجيل دخول تاني.`)) start(() => revokeDevice(deviceId));
+      }}
+    >
+      إلغاء
+    </Button>
   );
 }

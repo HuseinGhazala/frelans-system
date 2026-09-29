@@ -5,7 +5,7 @@ import { buttonClass } from "@/components/ui/button";
 import { Card, EmptyState, PageHeader, StatCard } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { db } from "@/lib/db";
-import { workedTodayByUser, type LiveStatus } from "@/lib/attendance";
+import { closeStaleAgentSessions, liveStatusOf, workedTodayByUser, type LiveStatus } from "@/lib/attendance";
 import { getSettings } from "@/lib/settings";
 import { formatDuration, HOUR_MS, toDateKey, weekdayOf } from "@/lib/time";
 
@@ -21,11 +21,12 @@ export default async function AdminHome() {
   const todayKey = toDateKey(now, tz);
   const isWeekend = settings.general.weekendDays.includes(weekdayOf(todayKey));
 
+  await closeStaleAgentSessions(now);
   const employees = await db.user.findMany({
     where: { role: "EMPLOYEE", active: true },
     include: {
       profile: true,
-      workSessions: { where: { endedAt: null }, include: { breaks: { where: { endedAt: null } } }, take: 1 },
+      workSessions: { where: { endedAt: null }, include: { breaks: { where: { endedAt: null } }, device: true }, take: 1 },
     },
     orderBy: { name: "asc" },
   });
@@ -33,14 +34,14 @@ export default async function AdminHome() {
 
   const rows = employees.map((e) => {
     const open = e.workSessions[0];
-    const status: LiveStatus = !open ? "OFFLINE" : open.breaks.length ? "ON_BREAK" : "WORKING";
+    const status = liveStatusOf(open ?? null);
     const workedMs = worked.get(e.id) ?? 0;
     const requiredMs = Number(e.profile?.dailyHours ?? settings.attendance.defaultDailyHours) * HOUR_MS;
     return { e, open, status, workedMs, requiredMs };
   });
   const count = (s: LiveStatus) => rows.filter((r) => r.status === s).length;
   const notCheckedIn = rows.filter((r) => r.workedMs === 0 && r.status === "OFFLINE").length;
-  const order: Record<LiveStatus, number> = { WORKING: 0, ON_BREAK: 1, OFFLINE: 2 };
+  const order: Record<LiveStatus, number> = { WORKING: 0, IDLE: 1, ON_BREAK: 2, OFFLINE: 3 };
   rows.sort((a, b) => order[a.status] - order[b.status]);
 
   return (
@@ -48,7 +49,7 @@ export default async function AdminHome() {
       <PageHeader title="الرئيسية" description={`${dateFmt(tz).format(now)}${isWeekend ? " — إجازة أسبوعية" : ""}`} />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="يعملون الآن" value={count("WORKING")} tone="success" />
+        <StatCard label="يعملون الآن" value={count("WORKING")} tone="success" hint={count("IDLE") ? `+ ${count("IDLE")} خامل` : undefined} />
         <StatCard label="في استراحة" value={count("ON_BREAK")} tone="warning" />
         <StatCard label="لم يسجلوا حضور اليوم" value={isWeekend ? "—" : notCheckedIn} tone={notCheckedIn && !isWeekend ? "danger" : "default"} />
         <StatCard label="إجمالي الموظفين" value={employees.length} />
@@ -87,6 +88,9 @@ export default async function AdminHome() {
                 <div className="mt-3 flex min-h-5 flex-wrap items-center gap-2 text-xs text-muted">
                   {open && <span>من {timeFmt(tz).format(open.startedAt)}</span>}
                   {open?.source === "WEB" && <Badge tone="info">جلسة من الموقع</Badge>}
+                  {status === "IDLE" && open?.device?.idleSince && (
+                    <Badge tone="danger">خامل منذ {Math.max(1, Math.round((now.getTime() - open.device.idleSince.getTime()) / 60000))} د</Badge>
+                  )}
                 </div>
               </Card>
             </Link>
