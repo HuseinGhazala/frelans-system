@@ -20,7 +20,7 @@ export default async function MyActivityPage({ searchParams }: PageProps<"/me/ac
 
   return (
     <>
-      <PageHeader title="نشاطي" description="كل اللي اتسجل عنك: الحضور، النشاط، البرامج، ولقطات الشاشة" action={<DateNav date={date} today={today} hrefFor={(d) => `?date=${d}`} />} />
+      <PageHeader title="نشاطي" description="كل اللي اتسجل عنك: الحضور، النشاط، والبرامج" action={<DateNav date={date} today={today} hrefFor={(d) => `?date=${d}`} />} />
       <DayView
         userId={user.id}
         date={date}

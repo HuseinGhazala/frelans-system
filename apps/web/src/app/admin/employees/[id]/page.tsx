@@ -95,7 +95,7 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
           <div className="mb-4 flex justify-end">
             <DateNav date={date} today={today} hrefFor={(d) => `?tab=day&date=${d}`} />
           </div>
-          <DayView userId={id} date={date} tz={tz} dailyMs={dailyMs} intervalMin={employee.profile?.screenshotIntervalMin ?? settings.attendance.screenshotIntervalMin} />
+          <DayView userId={id} date={date} tz={tz} dailyMs={dailyMs} intervalMin={employee.profile?.screenshotIntervalMin ?? settings.attendance.screenshotIntervalMin} showScreenshots />
         </>
       )}
 
