@@ -7,12 +7,12 @@ import { formatDuration, startOfDay, type DateKey } from "@/lib/time";
 import { ScreenshotGrid } from "./screenshot-grid";
 import { Timeline } from "./timeline";
 
-/** عرض يوم كامل لموظف: الأرقام، شريط اليوم، النشاط، اللقطات — للأدمن وللموظف نفسه */
-export async function DayView({ userId, date, tz, dailyMs, intervalMin }: { userId: string; date: DateKey; tz: string; dailyMs: number; intervalMin: number }) {
+/** عرض يوم كامل لموظف: الأرقام، شريط اليوم، النشاط، واللقطات (اللقطات للأدمن بس) */
+export async function DayView({ userId, date, tz, dailyMs, intervalMin, showScreenshots = false }: { userId: string; date: DateKey; tz: string; dailyMs: number; intervalMin: number; showScreenshots?: boolean }) {
   const [t, activity, shots] = await Promise.all([
     dayTimeline(userId, date, tz),
     dayActivity(userId, tz, startOfDay(date, tz)),
-    screenshotsForDay(userId, date, tz, intervalMin),
+    showScreenshots ? screenshotsForDay(userId, date, tz, intervalMin) : null,
   ]);
   const inFmt = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { hour: "numeric", minute: "2-digit", timeZone: tz });
 
@@ -35,13 +35,12 @@ export async function DayView({ userId, date, tz, dailyMs, intervalMin }: { user
 
       <DayActivityCard a={activity} title="البرامج والمواقع" />
 
-      <Card>
-        <CardHeader title="لقطات الشاشة" description={`${shots.length} لقطة`} />
-        <ScreenshotGrid
-          tz={tz}
-          shots={shots.map((s) => ({ ...s, takenAt: s.takenAt.getTime() }))}
-        />
-      </Card>
+      {shots && (
+        <Card>
+          <CardHeader title="لقطات الشاشة" description={`${shots.length} لقطة`} />
+          <ScreenshotGrid tz={tz} shots={shots.map((s) => ({ ...s, takenAt: s.takenAt.getTime() }))} />
+        </Card>
+      )}
     </div>
   );
 }

@@ -2,13 +2,14 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { readObject } from "@/lib/storage";
 
-/** عرض لقطة: الأدمن يشوف الكل، والموظف يشوف لقطاته بس */
+/** عرض لقطة: للأدمن بس */
 export async function GET(_request: Request, ctx: RouteContext<"/api/screenshots/[id]">) {
   const user = await getCurrentUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
+  if (user.role !== "ADMIN") return new Response("Not found", { status: 404 });
   const { id } = await ctx.params;
   const shot = await db.screenshot.findUnique({ where: { id } });
-  if (!shot || (user.role !== "ADMIN" && shot.userId !== user.id)) return new Response("Not found", { status: 404 });
+  if (!shot) return new Response("Not found", { status: 404 });
 
   const obj = await readObject(shot.storageKey).catch(() => null);
   if (!obj) return new Response("Not found", { status: 404 });
