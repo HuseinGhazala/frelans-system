@@ -11,7 +11,11 @@ export async function authenticateDevice(request: Request) {
   if (!device || device.revokedAt || !device.user.active || device.user.role !== "EMPLOYEE") return null;
   // موظفين نظام التاسكات مش بيستخدموا البرنامج
   if (device.user.profile?.workMode === "TASKS") return null;
-  await db.device.update({ where: { id: device.id }, data: { lastSeenAt: new Date() } });
+  // طلبات الشات (زي "بيكتب") بتيجي كل كام ثانية — نحدّث آخر ظهور مرة كل 30 ثانية بالكتير
+  const now = new Date();
+  if (!device.lastSeenAt || now.getTime() - device.lastSeenAt.getTime() > 30_000) {
+    await db.device.update({ where: { id: device.id }, data: { lastSeenAt: now } });
+  }
   return device;
 }
 
