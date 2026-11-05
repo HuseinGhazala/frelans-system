@@ -117,16 +117,17 @@ export async function saveUpload(viewer: Viewer, file: File, opts: { kind?: Atta
 export async function attachmentResponse(attachment: Attachment, opts: { download?: boolean; range?: string | null } = {}): Promise<Response> {
   if (attachment.expiredAt) return Response.json({ error: "الملف اتمسح بعد مدة الحفظ" }, { status: 410 });
 
-  const obj = await readObject(attachment.storageKey).catch(() => null);
+  const inline = !opts.download && isInlineMime(attachment.mime);
+  const disposition = contentDisposition(inline ? "inline" : "attachment", attachment.name);
+  const obj = await readObject(attachment.storageKey, { contentDisposition: disposition, contentType: servedContentType(attachment.mime) }).catch(() => null);
   if (!obj) return Response.json({ error: "الملف مش موجود" }, { status: 404 });
   if ("redirect" in obj) {
     return new Response(null, { status: 302, headers: { location: obj.redirect, "cache-control": "private, no-store" } });
   }
 
-  const inline = !opts.download && isInlineMime(attachment.mime);
   const headers = new Headers({
     "content-type": servedContentType(attachment.mime),
-    "content-disposition": contentDisposition(inline ? "inline" : "attachment", attachment.name),
+    "content-disposition": disposition,
     "x-content-type-options": "nosniff",
     "cache-control": "private, max-age=3600",
     "content-security-policy": "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox",

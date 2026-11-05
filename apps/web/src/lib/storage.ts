@@ -49,10 +49,22 @@ export async function deleteObject(key: string) {
   await fs.rm(localPath(key), { force: true });
 }
 
-/** للـ S3 بيرجع رابط موقّع صالح 5 دقايق، وللـ local بيرجع محتوى الملف */
-export async function readObject(key: string): Promise<{ redirect: string } | { body: Buffer }> {
+/**
+ * للـ S3 بيرجع رابط موقّع صالح 5 دقايق، وللـ local بيرجع محتوى الملف.
+ * response = هيدرز يرجعها S3 مع الملف (زي content-disposition عشان التحميل يبقى باسم الملف)
+ */
+export async function readObject(
+  key: string,
+  response: { contentDisposition?: string; contentType?: string } = {},
+): Promise<{ redirect: string } | { body: Buffer }> {
   if (driver === "s3") {
-    return { redirect: await getSignedUrl(client(), new GetObjectCommand({ Bucket: bucket(), Key: key }), { expiresIn: 300 }) };
+    const cmd = new GetObjectCommand({
+      Bucket: bucket(),
+      Key: key,
+      ResponseContentDisposition: response.contentDisposition,
+      ResponseContentType: response.contentType,
+    });
+    return { redirect: await getSignedUrl(client(), cmd, { expiresIn: 300 }) };
   }
   return { body: await fs.readFile(localPath(key)) };
 }
