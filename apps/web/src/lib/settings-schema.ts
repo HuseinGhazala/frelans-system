@@ -49,6 +49,20 @@ export const settingsSchema = z.object({
       doneListNames: z.array(z.string()).default([]),
     })
     .prefault({}),
+  chat: z
+    .object({
+      /** الملفات والصور والصوت بتتمسح بعد المدة دي (النص بيفضل) */
+      fileRetentionDays: z.number().int().min(1).max(3650).default(90),
+      maxFileMb: z.number().int().min(1).max(100).default(25),
+      /** صاحب الرسالة يقدر يعدّلها أو يمسحها خلال المدة دي */
+      editWindowMin: z.number().int().min(0).max(1440).default(15),
+      /** إيميل لو في رسايل ماتقرتش بقالها المدة دي */
+      unreadEmail: z.boolean().default(true),
+      unreadEmailAfterMin: z.number().int().min(5).max(1440).default(30),
+      /** أقل مدة بين إيميلين لنفس الشخص */
+      unreadEmailEveryMin: z.number().int().min(10).max(1440).default(60),
+    })
+    .prefault({}),
   smtp: z
     .object({
       host: z.string().default(""),
