@@ -25,7 +25,10 @@ export function chatEventStream(request: Request, userId: string): Response {
           cleanup();
         }
       };
-      const sendEvent = (event: ChatEvent) => send(`event: chat\ndata: ${JSON.stringify(event)}\n\n`);
+      const write = (event: ChatEvent) => send(`event: chat\ndata: ${JSON.stringify(event)}\n\n`);
+      // أي حدث يوصل قبل hello بيستنى، عشان hello يبقى دايمًا أول حدث (الحالة الأولية)
+      let queue: ChatEvent[] | null = [];
+      const sendEvent = (event: ChatEvent) => (queue ? queue.push(event) : write(event));
 
       const unsubscribe = subscribe(userId, sendEvent);
       const ping = setInterval(() => send(`: ping\n\n`), HEARTBEAT_MS);
@@ -41,7 +44,10 @@ export function chatEventStream(request: Request, userId: string): Response {
       request.signal.addEventListener("abort", cleanup);
 
       send(`retry: 3000\n\n`);
-      sendEvent({ type: "hello", userId, presence: await presenceFor() });
+      write({ type: "hello", userId, presence: await presenceFor().catch(() => ({})) });
+      const pending = queue;
+      queue = null;
+      for (const e of pending) write(e);
     },
     cancel() {
       cleanup();
