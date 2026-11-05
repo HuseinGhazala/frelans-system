@@ -19,14 +19,24 @@ import {
   Activity,
   BarChart3,
   ListChecks,
+  MessageCircle,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { Avatar } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-const icons = { Home, Users, Settings, ClipboardList, CalendarDays, Wallet, Bell, FileText, Download, Activity, BarChart3, ListChecks };
+const icons = { Home, Users, Settings, ClipboardList, CalendarDays, Wallet, Bell, FileText, Download, Activity, BarChart3, ListChecks, MessageCircle };
 export type IconName = keyof typeof icons;
-export type NavItem = { href: string; label: string; icon: IconName; soon?: boolean; exact?: boolean; badge?: number };
+export type NavItem = {
+  href: string;
+  label: string;
+  icon: IconName;
+  soon?: boolean;
+  exact?: boolean;
+  badge?: number;
+  /** علامة بتتحدث لوحدها (client component) بدل الرقم الثابت — زي غير المقروء في الشات */
+  badgeNode?: React.ReactNode;
+};
 
 export function AppShell({
   nav,
@@ -85,6 +95,7 @@ export function AppShell({
               >
                 <Icon size={18} />
                 <span className="flex-1">{item.label}</span>
+                {item.badgeNode ?? null}
                 {item.badge ? (
                   <span className="min-w-5 rounded-full bg-danger px-1.5 text-center text-[11px] font-semibold leading-5 text-white tabular-nums">
                     {item.badge > 99 ? "99+" : item.badge}

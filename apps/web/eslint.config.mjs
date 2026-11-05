@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // ملفات macOS المخفية على الـ Shared Drive
+    "**/._*",
+    "src/generated/**",
   ]),
 ]);
 

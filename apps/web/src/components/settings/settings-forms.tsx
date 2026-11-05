@@ -130,6 +130,40 @@ export function AlertsForm({ s }: { s: Settings["alerts"] }) {
   );
 }
 
+export function ChatForm({ s }: { s: Settings["chat"] }) {
+  return (
+    <SectionForm section="chat" title="الشات" description="الشات الداخلي بين الموظفين والإدارة">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label="حذف الملفات بعد (يوم)" htmlFor="fileRetentionDays" hint="الصور والملفات والريكوردات — النص بيفضل">
+          {numInput("fileRetentionDays", s.fileRetentionDays, { min: 1, max: 3650 })}
+        </Field>
+        <Field label="أقصى حجم للملف (MB)" htmlFor="maxFileMb">
+          {numInput("maxFileMb", s.maxFileMb, { min: 1, max: 100 })}
+        </Field>
+        <Field label="مدة التعديل والحذف (دقيقة)" htmlFor="editWindowMin" hint="صاحب الرسالة يقدر يعدلها أو يمسحها خلالها. 0 = مينفعش">
+          {numInput("editWindowMin", s.editWindowMin, { min: 0, max: 1440 })}
+        </Field>
+      </div>
+      <div className="divide-y divide-border">
+        <Toggle
+          name="unreadEmail"
+          defaultChecked={s.unreadEmail}
+          label="إيميل بالرسايل اللي ماتقرتش"
+          hint="لو حد عنده رسايل ماتقرتش وهو مش فاتح الشات (محتاج إعدادات البريد الإلكتروني)"
+        />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="الإيميل بعد (دقيقة)" htmlFor="unreadEmailAfterMin" hint="الرسالة تفضل ماتقرتش المدة دي">
+          {numInput("unreadEmailAfterMin", s.unreadEmailAfterMin, { min: 5, max: 1440 })}
+        </Field>
+        <Field label="أقل مدة بين إيميلين (دقيقة)" htmlFor="unreadEmailEveryMin" hint="لنفس الشخص">
+          {numInput("unreadEmailEveryMin", s.unreadEmailEveryMin, { min: 10, max: 1440 })}
+        </Field>
+      </div>
+    </SectionForm>
+  );
+}
+
 export function SmtpForm({ s }: { s: Omit<Settings["smtp"], "password"> & { hasPassword: boolean } }) {
   const [pending, start] = useTransition();
   const [test, setTest] = useState<ActionState>(null);

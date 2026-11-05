@@ -1,6 +1,8 @@
 import "server-only";
 import { dayActivity } from "./activity";
 import { createAlert, emailAdmins } from "./alerts";
+import { sendUnreadChatEmails } from "./chat/email";
+import { deleteExpiredChatAttachments } from "./chat/retention";
 import { closeStaleAgentSessions, rangeSummary } from "./attendance";
 import { db } from "./db";
 import { deleteExpiredScreenshots } from "./screenshots";
@@ -179,6 +181,7 @@ export async function runScheduledJobs(now = new Date()) {
     await closeStaleAgentSessions(now);
     await checkLongIdle(now);
     await checkOverdueTasks(now);
+    await sendUnreadChatEmails(now).catch((err) => console.error("chat emails failed", err));
 
     // تقييم الأيام اللي خلصت (ولو السيرفر كان واقف نعوّض لحد أسبوع)
     const last = await getMark("evaluatedDay");
@@ -196,6 +199,7 @@ export async function runScheduledJobs(now = new Date()) {
     if ((await getMark("cleanupDay")) !== today) {
       await setMark("cleanupDay", today);
       await deleteExpiredScreenshots(settings.attendance.screenshotRetentionDays, now);
+      await deleteExpiredChatAttachments(now);
       // أحداث البرنامج القديمة (للحماية من التكرار) مش محتاجينها بعد أسبوع
       await db.processedEvent.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 7 * 86_400_000) } } });
     }

@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn, initialsOf } from "@/lib/utils";
 import type { LiveStatus } from "@/lib/attendance";
 
 type Tone = "success" | "warning" | "danger" | "info" | "neutral" | "primary";
@@ -37,7 +37,7 @@ export function StatusBadge({ status }: { status: LiveStatus }) {
 }
 
 export function Avatar({ name, status, size = 40 }: { name: string; status?: LiveStatus; size?: number }) {
-  const initials = name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("");
+  const initials = initialsOf(name);
   const dot = status && { WORKING: "bg-success", IDLE: "bg-idle", ON_BREAK: "bg-warning", OFFLINE: "bg-muted" }[status];
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>

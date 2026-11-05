@@ -1,8 +1,13 @@
 {$DOMAIN} {
-	encode gzip
-	# حد أقصى لحجم الطلب (لقطات الشاشة)
+	# الضغط لكل حاجة ما عدا البث اللحظي بتاع الشات (SSE) عشان الأحداث توصل فورًا
+	@compressible not path /api/chat/stream /api/agent/v1/chat/stream
+	encode @compressible gzip
+	# حد أقصى لحجم الطلب: لقطات الشاشة وملفات الشات (لازم يكون أكبر من chat.maxFileMb في الإعدادات — الافتراضي 25MB)
 	request_body {
-		max_size 5MB
+		max_size 30MB
 	}
-	reverse_proxy web:3000
+	reverse_proxy web:3000 {
+		# يبعت كل حاجة أول بأول من غير تخزين مؤقت (مهم للـ SSE)
+		flush_interval -1
+	}
 }

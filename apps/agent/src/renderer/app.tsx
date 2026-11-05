@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { RasedApi } from "../preload";
 import type { TaskCard, ViewModel } from "../core/types";
+import { unreadTotal } from "../core/chat-state";
+import { ChatTab } from "./chat";
+import { ChatStore, useChatStore } from "./chat-store";
 
 declare global {
   interface Window {
@@ -9,6 +12,7 @@ declare global {
   }
 }
 const rased = window.rased;
+const chatStore = new ChatStore(rased.chat);
 
 type MainView = Extract<ViewModel, { screen: "main" }>;
 
@@ -286,6 +290,46 @@ function Main({ v }: { v: MainView }) {
   );
 }
 
+/** الشاشة الرئيسية بعد الدخول: تبويب الحضور (زي ما هو) وتبويب الشات */
+function Shell({ v }: { v: MainView }) {
+  const [tab, setTab] = useState<"attendance" | "chat">("attendance");
+  const [openRequest, setOpenRequest] = useState<{ id: string | null; n: number }>({ id: null, n: 0 });
+  const unread = unreadTotal(useChatStore(chatStore).list);
+
+  useEffect(
+    () =>
+      rased.chat.onOpen((id) => {
+        setTab("chat");
+        setOpenRequest((r) => ({ id, n: r.n + 1 }));
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    document.title = unread > 0 ? `(${unread > 99 ? "99+" : unread}) راصد` : "راصد";
+  }, [unread]);
+
+  return (
+    <div className="shell">
+      <nav className="tabs" role="tablist">
+        <button role="tab" aria-selected={tab === "attendance"} className={tab === "attendance" ? "on" : ""} onClick={() => setTab("attendance")}>
+          الحضور
+        </button>
+        <button role="tab" aria-selected={tab === "chat"} className={tab === "chat" ? "on" : ""} onClick={() => setTab("chat")}>
+          الشات
+          {unread > 0 && <span className="badge">{unread > 99 ? "99+" : unread}</span>}
+        </button>
+      </nav>
+      <div className="tab-body" hidden={tab !== "attendance"}>
+        <Main v={v} />
+      </div>
+      <div className="tab-body" hidden={tab !== "chat"}>
+        <ChatTab store={chatStore} api={rased.chat} visible={tab === "chat"} openRequest={openRequest} />
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [v, setV] = useState<ViewModel>({ screen: "loading" });
   useEffect(() => {
@@ -294,7 +338,7 @@ function App() {
   }, []);
   if (v.screen === "login") return <Login v={v} />;
   if (v.screen === "consent") return <Consent v={v} />;
-  if (v.screen === "main") return <Main v={v} />;
+  if (v.screen === "main") return <Shell v={v} />;
   return (
     <div className="screen center">
       <div className="spin" />

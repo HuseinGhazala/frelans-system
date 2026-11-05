@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { closeStaleAgentSessions, workedTodayByUser } from "@/lib/attendance";
+import { announcePresence } from "@/lib/chat/presence";
 import { getSettings } from "@/lib/settings";
 import type { ActivityMinuteInput, AgentEvent, AgentState } from "./protocol";
 
@@ -38,6 +39,7 @@ async function closeSession(sessionId: string, startedAt: Date, at: Date, reason
 
 /** تطبيق الأحداث بالترتيب، مع تجاهل أي حدث اتنفذ قبل كده */
 export async function applyEvents(userId: string, deviceId: string, events: AgentEvent[], now = new Date()) {
+  let changed = false;
   for (const event of events) {
     try {
       await db.processedEvent.create({ data: { deviceId, eventId: event.id } });
@@ -45,8 +47,10 @@ export async function applyEvents(userId: string, deviceId: string, events: Agen
       if (isUniqueViolation(e)) continue; // اتنفذ قبل كده
       throw e;
     }
-    await applyEvent(userId, deviceId, event, now);
+    if (await applyEvent(userId, deviceId, event, now)) changed = true;
   }
+  // حالة الشات تتحدث عند الكل لو الحضور/الاستراحة اتغيروا — فشلها ما يوقفش المزامنة
+  if (changed) void announcePresence(userId).catch((err) => console.error("announcePresence failed", err));
 }
 
 /**
@@ -67,56 +71,63 @@ export async function resumeLostSession(userId: string, deviceId: string, minute
   }
 }
 
-/** تطبيق حدث واحد. الأحداث مصممة إنها لو اتكررت ما تعملش حاجة غلط. */
-async function applyEvent(userId: string, deviceId: string, event: AgentEvent, now: Date) {
+/**
+ * تطبيق حدث واحد. الأحداث مصممة إنها لو اتكررت ما تعملش حاجة غلط.
+ * بيرجع true لو حالة الحضور (جلسة/استراحة) اتغيرت فعلًا.
+ */
+async function applyEvent(userId: string, deviceId: string, event: AgentEvent, now: Date): Promise<boolean> {
   const at = clampTime(event.at, now);
-  if (!at) return;
+  if (!at) return false;
   const open = await openSessionOf(userId);
 
   switch (event.type) {
     case "check_in": {
-      if (open?.source === "AGENT" && open.deviceId === deviceId) return; // مكرر
+      if (open?.source === "AGENT" && open.deviceId === deviceId) return false; // مكرر
       // لو في جلسة مفتوحة (من الموقع أو جهاز تاني) نقفلها ونبدأ جلسة البرنامج
       if (open) await closeSession(open.id, open.startedAt, at, "MANUAL");
       try {
         await db.workSession.create({ data: { userId, deviceId, source: "AGENT", startedAt: at } });
       } catch (e) {
         if (!isUniqueViolation(e)) throw e;
+        return Boolean(open);
       }
-      return;
+      return true;
     }
     case "check_out": {
-      if (!open) return;
+      if (!open) return false;
       await closeSession(open.id, open.startedAt, at, event.reason);
-      return;
+      return true;
     }
     case "break_start": {
-      if (!open || open.breaks.length) return;
+      if (!open || open.breaks.length) return false;
       try {
         await db.break.create({ data: { sessionId: open.id, startedAt: at < open.startedAt ? open.startedAt : at } });
       } catch (e) {
         if (!isUniqueViolation(e)) throw e;
+        return false;
       }
-      return;
+      return true;
     }
     case "break_end": {
-      if (!open?.breaks.length) return;
+      if (!open?.breaks.length) return false;
       await db.break.updateMany({ where: { sessionId: open.id, endedAt: null }, data: { endedAt: at } });
-      return;
+      return true;
     }
     case "idle": {
       const endAt = clampTime(event.endAt, now) ?? at;
-      if (endAt <= at) return;
+      if (endAt <= at) return false;
       const session = await sessionAt(userId, at);
-      if (!session) return;
+      if (!session) return false;
       await db.idlePeriod.upsert({
         where: { sessionId_startedAt: { sessionId: session.id, startedAt: at } },
         create: { sessionId: session.id, startedAt: at, endedAt: endAt },
         update: { endedAt: endAt },
       });
-      return;
+      // فترة خمول قديمة — الحالة الحالية (خامل دلوقتي) بتيجي من idleSince
+      return false;
     }
   }
+  return false;
 }
 
 /** حفظ ملخص الدقائق. الدقيقة اللي مش جوه أي جلسة بتتجاهل. */

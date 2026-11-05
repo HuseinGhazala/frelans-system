@@ -3,7 +3,7 @@ import type { ServerState } from "../core/types";
 
 const TIMEOUT_MS = 20_000;
 
-async function request<T>(url: string, init: RequestInit & { token?: string | null }): Promise<T> {
+export async function request<T>(url: string, init: RequestInit & { token?: string | null }): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: {

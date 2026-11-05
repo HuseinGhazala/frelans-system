@@ -38,6 +38,14 @@ model User {
   leaves       LeaveRequest[]
   payrollItems PayrollItem[]
   alerts       Alert[]
+
+  chatMemberships      ConversationMember[]
+  chatMessages         Message[]
+  chatCreated          Conversation[]       @relation("ConversationCreator")
+  chatMentions         MessageMention[]
+  chatAttachments      Attachment[]
+  chatEdits            MessageEdit[]
+  pushSubscriptions    PushSubscription[]
 }
 
 /// نظام عمل الموظف
@@ -406,4 +414,143 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ───────────────────────── الشات الداخلي ─────────────────────────
+
+enum ConversationType {
+  /// محادثة خاصة بين اتنين
+  DIRECT
+  /// جروب (أي حد يعمله ويضيف فيه)
+  GROUP
+  /// القناة العامة: فيها كل المستخدمين النشطين، واحدة بس
+  GENERAL
+}
+
+enum ConversationRole {
+  OWNER
+  MEMBER
+}
+
+enum AttachmentKind {
+  IMAGE
+  FILE
+  VOICE
+}
+
+model Conversation {
+  id            String           @id @default(cuid())
+  type          ConversationType
+  /// اسم الجروب (الخاص بياخد اسم الطرف التاني)
+  name          String?
+  /// للخاص: "<id أصغر>:<id أكبر>" عشان المحادثة ما تتكررش. للعامة: "GENERAL"
+  uniqueKey     String?          @unique
+  createdById   String?
+  createdBy     User?            @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  lastMessageAt DateTime         @default(now())
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  members       ConversationMember[]
+  messages      Message[]
+
+  @@index([lastMessageAt])
+}
+
+model ConversationMember {
+  conversationId String
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           ConversationRole @default(MEMBER)
+  joinedAt       DateTime         @default(now())
+  /// آخر وقت قرا فيه المحادثة — الرسايل بعده = غير مقروءة، وبيتحسب منه "اتقرت"
+  lastReadAt     DateTime?
+  /// آخر إيميل اتبعتله عن رسايل ماتقرتش في المحادثة دي
+  lastEmailedAt  DateTime?
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User             @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body           String           @default("")
+  replyToId      String?
+  replyTo        Message?         @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        Message[]        @relation("MessageReply")
+  editedAt       DateTime?
+  /// حذف ناعم: الموظفين بيشوفوا "الرسالة اتمسحت"، والأدمن بيشوف الأصل
+  deletedAt      DateTime?
+  createdAt      DateTime         @default(now())
+  attachments    Attachment[]
+  mentions       MessageMention[]
+  edits          MessageEdit[]
+
+  @@index([conversationId, createdAt])
+  @@index([body(ops: raw("gin_trgm_ops"))], type: Gin, map: "Message_body_trgm_idx")
+}
+
+/// النسخ القديمة من الرسالة قبل التعديل (للأدمن)
+model MessageEdit {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  editorId  String
+  editor    User     @relation(fields: [editorId], references: [id], onDelete: Cascade)
+  /// النص قبل التعديل
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+}
+
+model MessageMention {
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@index([userId])
+}
+
+/// ملف أو صورة أو ريكورد صوت. بيترفع الأول (messageId فاضي) وبعدين بيتربط بالرسالة لما تتبعت.
+model Attachment {
+  id          String         @id @default(cuid())
+  messageId   String?
+  message     Message?       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploaderId  String
+  uploader    User           @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  kind        AttachmentKind
+  name        String
+  mime        String
+  bytes       Int
+  storageKey  String         @unique
+  width       Int?
+  height      Int?
+  durationSec Int?
+  /// الملف اتمسح من التخزين بعد مدة الحفظ (الرسالة بتفضل)
+  expiredAt   DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([messageId])
+  @@index([createdAt])
+}
+
+/// اشتراك إشعارات المتصفح (Web Push)
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
