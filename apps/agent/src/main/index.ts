@@ -5,10 +5,12 @@ import { SyncQueue } from "../core/queue";
 import { badgeCircle, drawBadgeDot } from "../core/badge";
 import { badgeLabel } from "../core/chat-state";
 import type { ViewModel } from "../core/types";
+import { shouldInstallSilently, trayUpdateLabel } from "../core/update-policy";
 import { createApi } from "./api";
 import { ChatMain, registerChatIpc } from "./chat";
 import { createPlatform } from "./platform";
 import { createSession, createShotStore, queueStorage } from "./store";
+import { Updater } from "./updater";
 
 const assets = (name: string) => path.join(__dirname, "..", "assets", name);
 
@@ -19,6 +21,7 @@ let quitting = false;
 let chat: ChatMain;
 let chatUnread = 0;
 let lastView: ViewModel = { screen: "loading" };
+let updater: Updater | null = null;
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -68,6 +71,7 @@ function createWindow() {
     }
   });
   win.on("focus", () => win?.flashFrame(false));
+  win.on("hide", maybeInstallSilently);
   win.webContents.once("did-finish-load", applyTaskbarBadge);
 }
 
@@ -142,6 +146,7 @@ function updateTray(v: ViewModel) {
   const status = v.screen === "main" ? v.status : "OFFLINE";
   const main = v.screen === "main";
   const unread = main ? chatUnread : 0;
+  const updateLabel = updater ? trayUpdateLabel(updater.state) : null;
   tray.setImage(trayImage(`tray-${status === "WORKING" ? "working" : status === "ON_BREAK" ? "break" : "off"}`, unread > 0));
   tray.setToolTip(`راصد — ${STATUS_LABEL[status]}${unread > 0 ? ` • ${badgeLabel(unread)} رسالة جديدة` : ""}`);
   tray.setContextMenu(
@@ -153,6 +158,7 @@ function updateTray(v: ViewModel) {
       { label: "استئناف العمل", visible: main && status === "ON_BREAK", click: () => void controller.endBreak() },
       { label: "تسجيل انصراف", visible: main && status !== "OFFLINE", click: () => void controller.checkOut() },
       { type: "separator" },
+      ...(updateLabel ? [{ label: updateLabel, enabled: updater?.state.phase === "ready", click: () => void installUpdate() }, { type: "separator" as const }] : []),
       { label: "فتح البرنامج", click: showWindow },
       { label: unread > 0 ? `الشات (${badgeLabel(unread)} جديد)` : "الشات", visible: main, click: () => openChat() },
       { label: "فتح لوحتي على الموقع", visible: main, click: () => main && void shell.openExternal(v.dashboardUrl) },
@@ -160,6 +166,26 @@ function updateTray(v: ViewModel) {
       { label: "خروج", click: () => void quit() },
     ]),
   );
+}
+
+/** تحديث دلوقتي: نسجل انصراف الأول (زي الخروج العادي)، وبعدين نقفل ونسطّب ونفتح تاني */
+async function installUpdate() {
+  if (!updater || updater.state.phase !== "ready") return;
+  quitting = true;
+  if (controller.status !== "OFFLINE") {
+    await Promise.race([controller.checkOut(), new Promise((r) => setTimeout(r, 5000))]);
+  }
+  controller.stop();
+  chat?.stop();
+  updater.stop();
+  updater.install();
+}
+
+/** لو التحديث جاهز والموظف مش مسجل حضور ومش فاتح البرنامج → نسطّب من غير ما نزعجه */
+function maybeInstallSilently() {
+  if (!updater || quitting) return;
+  const visible = Boolean(win && !win.isDestroyed() && win.isVisible());
+  if (shouldInstallSilently({ ready: updater.state.phase === "ready", status: controller.status, windowVisible: visible })) void installUpdate();
 }
 
 /** الخروج بيسجل انصراف الأول، عشان الوقت بعد القفل ما يتحسبش */
@@ -170,6 +196,7 @@ async function quit() {
   }
   controller.stop();
   chat?.stop();
+  updater?.stop();
   app.quit();
 }
 
@@ -204,6 +231,16 @@ async function boot() {
     else if (v.screen === "login") chat.stop();
     updateTray(v);
     win?.webContents.send("view", v);
+    maybeInstallSilently();
+  });
+
+  updater = new Updater({
+    icon: assets("icon.png"),
+    onChange: () => {
+      updateTray(lastView);
+      maybeInstallSilently();
+    },
+    onNotificationClick: () => void installUpdate(),
   });
 
   for (const ev of ["lock-screen", "unlock-screen", "suspend", "resume"] as const) {
@@ -235,6 +272,7 @@ async function boot() {
   lastView = controller.view();
   if (lastView.screen === "main") chat.start();
   updateTray(lastView);
+  updater.start();
 }
 
 app.on("window-all-closed", () => {

@@ -18,7 +18,7 @@ await Promise.all([
     target: "node22",
     format: "cjs",
     // الموديولز اللي فيها native code بتفضل برّه الـ bundle
-    external: ["electron", "uiohook-napi", "get-windows"],
+    external: ["electron", "uiohook-napi", "get-windows", "electron-updater"],
     define: { __DEFAULT_SERVER_URL__: JSON.stringify(serverUrl) },
   }),
   build({
