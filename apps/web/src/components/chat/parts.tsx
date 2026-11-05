@@ -3,7 +3,7 @@
 import { useEffect, useId } from "react";
 import { Users, X } from "lucide-react";
 import type { ConversationSummary, PresenceStatus } from "@/lib/chat/types";
-import { cn } from "@/lib/utils";
+import { cn, initialsOf } from "@/lib/utils";
 import { PRESENCE_META, type BodySegment, parseBody } from "./utils";
 
 export function PresenceDot({ status, className }: { status: PresenceStatus | undefined; className?: string }) {
@@ -12,14 +12,14 @@ export function PresenceDot({ status, className }: { status: PresenceStatus | un
 }
 
 export function ChatAvatar({ name, status, size = 40, group }: { name: string; status?: PresenceStatus; size?: number; group?: boolean }) {
-  const initials = name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("");
+  const initials = initialsOf(name);
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
       <span className={cn("flex h-full w-full items-center justify-center rounded-full font-semibold", group ? "bg-info-soft text-info" : "bg-primary-soft text-primary", size < 36 ? "text-xs" : "text-sm")}>
         {group ? <Users size={Math.round(size * 0.45)} /> : initials}
       </span>
       {status && (
-        <span className="absolute bottom-0 left-0 rounded-full border-2 border-surface">
+        <span className="absolute bottom-0 left-0 flex rounded-full border-2 border-surface leading-none">
           <PresenceDot status={status} className="block" />
         </span>
       )}
