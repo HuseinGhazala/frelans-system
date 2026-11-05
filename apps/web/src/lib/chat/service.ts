@@ -167,13 +167,22 @@ function titleFor(conv: LoadedConversation, viewer: Viewer) {
 async function summarize(convs: LoadedConversation[], viewer: Viewer): Promise<ConversationSummary[]> {
   if (convs.length === 0) return [];
   const ids = convs.map((c) => c.id);
-  const lastMessages = await db.message.findMany({
-    where: { conversationId: { in: ids } },
-    orderBy: { createdAt: "desc" },
-    distinct: ["conversationId"],
-    include: { attachments: { select: { kind: true }, take: 1 } },
-  });
-  const lastBy = new Map(lastMessages.map((m) => [m.conversationId, m]));
+  // DISTINCT ON بدل distinct بتاع Prisma (اللي بيجيب كل رسايل المحادثات ويفلتر في الذاكرة)
+  const lastRows = await db.$queryRaw<{ id: string; conversationId: string; senderId: string; body: string; deletedAt: Date | null; createdAt: Date }[]>`
+    SELECT DISTINCT ON (m."conversationId") m."id", m."conversationId", m."senderId", m."body", m."deletedAt", m."createdAt"
+    FROM "Message" m
+    WHERE m."conversationId" IN (${Prisma.join(ids)})
+    ORDER BY m."conversationId", m."createdAt" DESC, m."id" DESC`;
+  const firstAttachments = lastRows.length
+    ? await db.attachment.findMany({
+        where: { messageId: { in: lastRows.map((r) => r.id) } },
+        select: { messageId: true, kind: true },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+  const kindsBy = new Map<string, { kind: (typeof firstAttachments)[number]["kind"] }[]>();
+  for (const a of firstAttachments) if (a.messageId && !kindsBy.has(a.messageId)) kindsBy.set(a.messageId, [{ kind: a.kind }]);
+  const lastBy = new Map(lastRows.map((m) => [m.conversationId, { ...m, attachments: kindsBy.get(m.id) ?? [] }]));
   const unreadRows = await db.$queryRaw<{ conversationId: string; count: bigint }[]>`
     SELECT m."conversationId", COUNT(*)::bigint AS count
     FROM "Message" m
@@ -377,15 +386,17 @@ export async function getMessages(
   const conv = await loadConversation(conversationId);
   await assertCanRead(viewer, conv);
   const limit = Math.min(Math.max(opts.limit ?? PAGE_SIZE, 1), 100);
-  let cursorDate: Date | undefined;
+  let cursor: { id: string; createdAt: Date } | null = null;
   if (opts.before) {
-    const b = await db.message.findFirst({ where: { id: opts.before, conversationId }, select: { createdAt: true } });
-    cursorDate = b?.createdAt;
+    cursor = await db.message.findFirst({ where: { id: opts.before, conversationId }, select: { id: true, createdAt: true } });
   }
   const rows = await db.message.findMany({
-    where: { conversationId, ...(cursorDate ? { createdAt: { lt: cursorDate } } : {}) },
+    where: {
+      conversationId,
+      ...(cursor ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] } : {}),
+    },
     include: { ...messageInclude, ...(viewer.role === "ADMIN" ? { edits: { orderBy: { createdAt: "asc" as const } } } : {}) },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
   });
   const hasMore = rows.length > limit;
@@ -452,6 +463,7 @@ export async function sendMessage(
   });
 
   await publishMessage("message.created", conv, created.id);
+  publish(memberIdsOf(conv), { type: "read", conversationId: conv.id, userId: viewer.id, lastReadAt: now.toISOString() });
   const message = toChatMessage(await loadMessage(created.id), viewer);
   const recipients = memberIdsOf(conv).filter((id) => id !== viewer.id);
   void onMessageCreated({ message, conversationId: conv.id, conversationType: conv.type, title: conv.name ?? null, sender: viewer, recipientIds: recipients, mentionIds }).catch(
@@ -547,12 +559,14 @@ export async function searchMessages(
   if (q.length < 2) return [];
   const all = opts.all && viewer.role === "ADMIN";
   if (all) await audit(viewer.id, "chat.monitor.search", undefined, { q: q.slice(0, 100) });
+  // الأدمن يقدر يقرا أي محادثة، فيقدر يدوّر جوه أي محادثة (القراءة نفسها بتتسجل في getMessages)
+  const anyConversation = all || (viewer.role === "ADMIN" && Boolean(opts.conversationId));
   const rows = await db.message.findMany({
     where: {
       body: { contains: q, mode: "insensitive" },
       ...(viewer.role === "ADMIN" ? {} : { deletedAt: null }),
       ...(opts.conversationId ? { conversationId: opts.conversationId } : {}),
-      ...(all ? {} : { conversation: { members: { some: { userId: viewer.id } } } }),
+      ...(anyConversation ? {} : { conversation: { members: { some: { userId: viewer.id } } } }),
     },
     include: { ...messageInclude, conversation: { include: { members: { include: { user: { select: userSelect } } } } } },
     orderBy: { createdAt: "desc" },

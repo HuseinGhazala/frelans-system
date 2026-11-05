@@ -4,12 +4,15 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireEmployee } from "@/lib/auth/dal";
 import { getOpenSession } from "@/lib/attendance";
+import { announcePresence } from "@/lib/chat/presence";
 import { getSettings } from "@/lib/settings";
 import type { ActionState } from "./types";
 
 const isUniqueViolation = (e: unknown) => (e as { code?: string })?.code === "P2002";
 
-function done(): ActionState {
+function done(userId: string): ActionState {
+  // حالة الشات (شغال/استراحة/...) تتحدث عند الكل — من غير ما فشلها يوقف الحضور
+  void announcePresence(userId).catch((err) => console.error("announcePresence failed", err));
   revalidatePath("/me");
   revalidatePath("/admin");
   return null;
@@ -29,7 +32,7 @@ export async function checkIn(): Promise<ActionState> {
     if (isUniqueViolation(e)) return { error: "انت مسجل حضور بالفعل" };
     throw e;
   }
-  return done();
+  return done(user.id);
 }
 
 export async function checkOut(): Promise<ActionState> {
@@ -41,7 +44,7 @@ export async function checkOut(): Promise<ActionState> {
     db.break.updateMany({ where: { sessionId: open.id, endedAt: null }, data: { endedAt: now } }),
     db.workSession.update({ where: { id: open.id }, data: { endedAt: now, endReason: "MANUAL" } }),
   ]);
-  return done();
+  return done(user.id);
 }
 
 export async function startBreak(): Promise<ActionState> {
@@ -55,7 +58,7 @@ export async function startBreak(): Promise<ActionState> {
     if (isUniqueViolation(e)) return { error: "انت في استراحة بالفعل" };
     throw e;
   }
-  return done();
+  return done(user.id);
 }
 
 export async function endBreak(): Promise<ActionState> {
@@ -63,5 +66,5 @@ export async function endBreak(): Promise<ActionState> {
   const open = await getOpenSession(user.id);
   if (!open?.breaks.length) return { error: "انت مش في استراحة" };
   await db.break.updateMany({ where: { sessionId: open.id, endedAt: null }, data: { endedAt: new Date() } });
-  return done();
+  return done(user.id);
 }
