@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/ui/card";
-import { AlertsForm, AttendanceForm, GeneralForm, HolidaysCard, PayrollForm, SmtpForm } from "@/components/settings/settings-forms";
+import { AlertsForm, AttendanceForm, ChatForm, GeneralForm, HolidaysCard, PayrollForm, SmtpForm } from "@/components/settings/settings-forms";
 import { CategoriesManager } from "@/components/settings/categories";
 import { TrelloSettings } from "@/components/settings/trello";
 import { listBoards, listNamesForBoards } from "@/lib/trello";
@@ -16,6 +16,7 @@ const tabs = [
   { id: "payroll", label: "المرتبات" },
   { id: "categories", label: "تصنيف البرامج" },
   { id: "alerts", label: "التنبيهات" },
+  { id: "chat", label: "الشات" },
   { id: "email", label: "البريد الإلكتروني" },
   { id: "trello", label: "Trello" },
 ] as const;
@@ -56,6 +57,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/admin/s
           {tab === "payroll" && <PayrollForm s={settings.payroll} />}
           {tab === "categories" && <CategoriesManager rules={rules} unclassified={unclassified} />}
           {tab === "alerts" && <AlertsForm s={settings.alerts} />}
+          {tab === "chat" && <ChatForm s={settings.chat} />}
           {tab === "email" && <SmtpForm s={{ ...smtp, hasPassword: Boolean(password) }} />}
           {tab === "trello" && <TrelloTab trello={settings.trello} tz={settings.general.timezone} />}
         </div>

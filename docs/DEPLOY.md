@@ -45,7 +45,7 @@ cd rased && git pull && cd deploy && docker compose up -d --build
 - الاسترجاع: `gunzip -c backups/rased-YYYY-MM-DD.sql.gz | docker compose exec -T db psql -U rased rased`
 
 ## المهام الدورية
-السيرفر بيشغّل كل دقيقة: التنبيهات (غياب، ساعات ناقصة، خمول طويل، إنتاجية منخفضة)، الملخص اليومي بالإيميل، حذف اللقطات القديمة، ومزامنة Trello كل 15 دقيقة. مفيش حاجة محتاجة تتظبط.
+السيرفر بيشغّل كل دقيقة: التنبيهات (غياب، ساعات ناقصة، خمول طويل، إنتاجية منخفضة)، الملخص اليومي بالإيميل، حذف اللقطات القديمة، إيميلات رسايل الشات اللي ماتقرتش، ومزامنة Trello كل 15 دقيقة. مفيش حاجة محتاجة تتظبط.
 
 ---
 
@@ -76,7 +76,23 @@ services:
 ```nginx
 server {
     server_name rased.pixelcodes.net;
-    client_max_body_size 5m;            # لقطات الشاشة
+    client_max_body_size 30m;           # لقطات الشاشة وملفات الشات (أكبر من "أقصى حجم للملف" في إعدادات الشات)
+
+    # البث اللحظي للشات (SSE) — من غير تخزين مؤقت ومن غير ما الاتصال يتقفل
+    location ~ ^/api(/agent/v1)?/chat/stream$ {
+        proxy_pass http://127.0.0.1:8310;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        gzip off;
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:8310;
         proxy_set_header Host $host;
@@ -87,4 +103,35 @@ server {
 ```
 وبعدين: `ln -s /etc/nginx/sites-available/rased /etc/nginx/sites-enabled/ && nginx -t && systemctl reload nginx && certbot --nginx -d rased.pixelcodes.net`
 
+> **مهم للشات:** من غير الـ `location` بتاع `/api/chat/stream` و`/api/agent/v1/chat/stream`، nginx بيخزّن الرد أو بيقفل الاتصال بعد 60 ثانية، فالرسايل مش هتوصل لحظيًا (لا في الموقع ولا في برنامج الديسكتوب). لو عدّلت ملف موجود، زوّد الـ `location` ده فوق `location /`.
+> مع Caddy (الطريقة الأساسية) مفيش حاجة محتاجة تتعمل — `deploy/Caddyfile` فيه `flush_interval -1` ومن غير ضغط لمسارات البث.
+
 التحديث: `cd ~/rased/deploy && git pull && docker compose up -d --build`
+
+---
+
+## إشعارات الشات
+
+الشات بيبعت إشعارات بـ 3 طرق:
+1. **إشعارات المتصفح (Web Push):** للي مش فاتح الشات. كل واحد بيفعّلها من زرار "فعّل الإشعارات" في صفحة الشات. في القناة العامة بتوصل بس لما حد يعمله منشن.
+2. **إشعارات ويندوز:** من برنامج الديسكتوب وهو شغال (مش محتاجة إعداد).
+3. **إيميل بالرسايل اللي ماتقرتش:** من **الإعدادات ← الشات** (محتاج إعدادات البريد الإلكتروني).
+
+### تفعيل إشعارات المتصفح (مرة واحدة)
+1. ولّد مفاتيح VAPID على أي جهاز عليه Node:
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+2. حط الناتج في `deploy/.env`:
+   ```env
+   VAPID_PUBLIC_KEY=BPx...      # Public Key
+   VAPID_PRIVATE_KEY=3Kq...     # Private Key — سر، ما تنشرهوش
+   VAPID_SUBJECT=mailto:admin@company.com
+   ```
+3. `docker compose up -d` (مش محتاج `--build` — المفاتيح بتتقري وقت التشغيل).
+
+ملاحظات:
+- لو المفاتيح مش موجودة، زرار الإشعارات مش بيظهر والموقع شغال عادي.
+- **ما تغيرش المفاتيح** بعد ما الناس تفعّل — الاشتراكات القديمة هتبطل وكل واحد هيحتاج يفعّل تاني.
+- الإشعارات محتاجة HTTPS (أو `localhost` للتجربة). على آيفون بتشتغل بس لو الموقع متضاف للشاشة الرئيسية (iOS 16.4+).
+- في الاستضافة السحابية: حط نفس المتغيرات الثلاثة في إعدادات المشروع.

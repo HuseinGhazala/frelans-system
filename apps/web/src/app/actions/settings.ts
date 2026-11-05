@@ -49,6 +49,15 @@ function readSection(section: SettingsSection, fd: FormData, current: Settings):
         dailySummaryTime: str(fd, "dailySummaryTime"),
         recipients: str(fd, "recipients").split(/[\s,،]+/).filter(Boolean),
       };
+    case "chat":
+      return {
+        fileRetentionDays: num(fd, "fileRetentionDays"),
+        maxFileMb: num(fd, "maxFileMb"),
+        editWindowMin: num(fd, "editWindowMin"),
+        unreadEmail: bool(fd, "unreadEmail"),
+        unreadEmailAfterMin: num(fd, "unreadEmailAfterMin"),
+        unreadEmailEveryMin: num(fd, "unreadEmailEveryMin"),
+      };
     case "smtp":
       return {
         host: str(fd, "host"),
