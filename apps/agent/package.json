@@ -1,7 +1,7 @@
 {
   "name": "agent",
   "productName": "Rased",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "راصد — برنامج متابعة العمل",
   "main": "dist/main.js",
@@ -13,6 +13,7 @@
     "dist:win": "node build.mjs && electron-builder --win --x64 --publish never"
   },
   "dependencies": {
+    "electron-updater": "^6.8.11",
     "get-windows": "^9.3.0",
     "uiohook-napi": "^1.5.5"
   },
@@ -73,7 +74,12 @@
       "category": "public.app-category.productivity",
       "icon": "assets/icon.png"
     },
-    "publish": null
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://github.com/HuseinGhazala/frelans-system/releases/latest/download"
+      }
+    ]
   },
   "repository": {
     "type": "git",
