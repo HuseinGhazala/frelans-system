@@ -46,9 +46,9 @@ jobs:
         run: |
           VERSION=$(node -p "require('./apps/agent/package.json').version")
           TAG="agent-v$VERSION"
+          test -f apps/agent/release/latest.yml || { echo "latest.yml missing (auto-update needs it)"; exit 1; }
           cp apps/agent/release/Rased-Setup-$VERSION.exe apps/agent/release/Rased-Setup.exe
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --target "$GITHUB_SHA" --title "برنامج راصد $VERSION" --notes "ملف تسطيب برنامج راصد لـ Windows."
           fi
-          test -f apps/agent/release/latest.yml || { echo "latest.yml missing (auto-update needs it)"; exit 1; }
           gh release upload "$TAG" apps/agent/release/Rased-Setup.exe "apps/agent/release/Rased-Setup-$VERSION.exe" "apps/agent/release/Rased-Setup-$VERSION.exe.blockmap" apps/agent/release/latest.yml --clobber
