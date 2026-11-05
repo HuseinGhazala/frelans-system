@@ -44,3 +44,4 @@ await Promise.all([
 
 fs.copyFileSync("src/renderer/index.html", "dist/renderer/index.html");
 fs.copyFileSync("src/renderer/app.css", "dist/renderer/app.css");
+fs.copyFileSync("src/renderer/chat.css", "dist/renderer/chat.css");
