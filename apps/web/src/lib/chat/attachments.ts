@@ -33,10 +33,8 @@ const UPLOADS_PER_WINDOW = 60;
 const UPLOAD_WINDOW_MS = 10 * 60_000;
 
 /** ChatError.status متحدد بـ 400/403/404 — هنا محتاجين 410/413/429 كمان */
-function httpError(message: string, status: number): ChatError {
-  const err = new ChatError(message);
-  (err as { status: number }).status = status;
-  return err;
+function httpError(message: string, status: ChatError["status"]): ChatError {
+  return new ChatError(message, status);
 }
 
 export function toChatAttachment(a: Attachment): ChatAttachment {

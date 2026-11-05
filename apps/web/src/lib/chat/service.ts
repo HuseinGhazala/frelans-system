@@ -29,7 +29,7 @@ export type Viewer = { id: string; role: "ADMIN" | "EMPLOYEE"; name: string };
 export class ChatError extends Error {
   constructor(
     message: string,
-    public status: 400 | 403 | 404 = 400,
+    public status: 400 | 403 | 404 | 410 | 413 | 429 = 400,
   ) {
     super(message);
   }
