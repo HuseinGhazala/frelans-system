@@ -1,8 +1,12 @@
 /**
  * أدوات الوقت والمنطقة الزمنية وحساب ساعات العمل.
- * كل الحسابات بتتم على "يوم" حسب المنطقة الزمنية للشركة (افتراضيًا Africa/Cairo)
- * مش حسب UTC، عشان اليوم يبدأ وينتهي الساعة 12 بالليل بتوقيت القاهرة.
+ * كل الحسابات بتتم على "يوم عمل" حسب المنطقة الزمنية للشركة (افتراضيًا Africa/Cairo) مش حسب UTC.
+ * يوم العمل بيبدأ الساعة 2 الفجر (DAY_START_HOUR) مش 12 بالليل: الشغل اللي بعد نص الليل لحد 2
+ * بيتحسب على اليوم اللي قبله. مثلًا لو حد اشتغل من 10 بالليل لـ 1:30 الفجر، الوقت كله على نفس اليوم.
  */
+
+/** الساعة (بتوقيت الشركة) اللي بيبدأ فيها يوم العمل وبيخلص فيها اللي قبله */
+export const DAY_START_HOUR = 2;
 
 export type DateKey = string; // "YYYY-MM-DD"
 
@@ -41,9 +45,17 @@ export function tzOffsetMs(date: Date, tz: string): number {
   return asUtc - Math.floor(date.getTime() / 1000) * 1000;
 }
 
-export function toDateKey(date: Date, tz: string): DateKey {
+/** التاريخ العادي (الساعة 12 بالليل) — للعرض بس، زي تقسيم رسايل الشات بالأيام */
+export function calendarDateKey(date: Date, tz: string): DateKey {
   const p = zonedParts(date, tz);
   return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
+
+/** يوم العمل اللي اللحظة دي تبعه: قبل الساعة 2 الفجر = اليوم اللي فات */
+export function toDateKey(date: Date, tz: string): DateKey {
+  const p = zonedParts(date, tz);
+  const key = `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+  return p.hour < DAY_START_HOUR ? addDays(key, -1) : key;
 }
 
 export function parseDateKey(key: DateKey): { year: number; month: number; day: number } {
@@ -51,10 +63,10 @@ export function parseDateKey(key: DateKey): { year: number; month: number; day: 
   return { year, month, day };
 }
 
-/** اللحظة اللي بيبدأ فيها اليوم (12 بالليل) في المنطقة الزمنية */
+/** اللحظة اللي بيبدأ فيها يوم العمل (الساعة 2 الفجر) في المنطقة الزمنية */
 export function startOfDay(key: DateKey, tz: string): Date {
   const { year, month, day } = parseDateKey(key);
-  const naive = Date.UTC(year, month - 1, day);
+  const naive = Date.UTC(year, month - 1, day, DAY_START_HOUR);
   let guess = naive - tzOffsetMs(new Date(naive), tz);
   // تصحيح لو اليوم فيه تغيير توقيت صيفي
   guess = naive - tzOffsetMs(new Date(guess), tz);

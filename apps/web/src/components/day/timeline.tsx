@@ -1,4 +1,5 @@
 import type { Segment } from "@/lib/day";
+import { DAY_START_HOUR } from "@/lib/time";
 
 const COLORS: Record<Segment["kind"], string> = {
   work: "bg-success",
@@ -17,12 +18,15 @@ const LEGEND: [Segment["kind"], string][] = [
 /** شريط اليوم من اليمين للشمال (RTL) */
 export function Timeline({ dayStart, segments, tz }: { dayStart: number; segments: Segment[]; tz: string }) {
   const HOUR = 3_600_000;
-  // نعرض من ساعة قبل أول نشاط لساعة بعد آخره (8 ص - 6 م على الأقل)
+  // نعرض من ساعة قبل أول نشاط لساعة بعد آخره (8 ص - 6 م على الأقل).
+  // الساعات هنا من بداية يوم العمل (2 الفجر)، فـ 8 ص = الساعة رقم 6
   const hourOf = (t: number) => (t - dayStart) / HOUR;
-  const first = segments.length ? Math.floor(Math.min(...segments.map((s) => hourOf(s.start)))) : 8;
-  const last = segments.length ? Math.ceil(Math.max(...segments.map((s) => hourOf(s.end)))) : 18;
-  const from = Math.max(0, Math.min(8, first - 1));
-  const to = Math.min(24, Math.max(18, last + 1));
+  const am8 = 8 - DAY_START_HOUR;
+  const pm6 = 18 - DAY_START_HOUR;
+  const first = segments.length ? Math.floor(Math.min(...segments.map((s) => hourOf(s.start)))) : am8;
+  const last = segments.length ? Math.ceil(Math.max(...segments.map((s) => hourOf(s.end)))) : pm6;
+  const from = Math.max(0, Math.min(am8, first - 1));
+  const to = Math.min(24, Math.max(pm6, last + 1));
   const span = (to - from) * HOUR;
   const pos = (t: number) => ((t - dayStart - from * HOUR) / span) * 100;
   const fmt = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { hour: "numeric", timeZone: tz });

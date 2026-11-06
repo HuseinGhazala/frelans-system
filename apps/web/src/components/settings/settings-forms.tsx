@@ -43,7 +43,7 @@ export function GeneralForm({ s }: { s: Settings["general"] }) {
         <Field label="العملة" htmlFor="currency">
           <Input id="currency" name="currency" defaultValue={s.currency} required />
         </Field>
-        <Field label="المنطقة الزمنية" htmlFor="timezone" hint="اليوم بيبدأ وينتهي الساعة 12 بالليل حسبها">
+        <Field label="المنطقة الزمنية" htmlFor="timezone" hint="يوم العمل بيبدأ الساعة 2 الفجر حسبها (الشغل بعد نص الليل لحد 2 بيتحسب على اليوم اللي قبله)">
           <Input id="timezone" name="timezone" dir="ltr" defaultValue={s.timezone} required />
         </Field>
       </div>
