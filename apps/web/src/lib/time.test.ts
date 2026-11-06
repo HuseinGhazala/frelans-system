@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  calendarDateKey,
   dayRange,
   formatDuration,
   HOUR_MS,
@@ -14,17 +15,32 @@ import {
 const TZ = "Africa/Cairo";
 
 describe("zoned days", () => {
-  it("starts the Cairo day at local midnight (summer time, UTC+3)", () => {
-    expect(startOfDay("2026-07-15", TZ).toISOString()).toBe("2026-07-14T21:00:00.000Z");
+  it("starts the Cairo work day at 2am local (summer time, UTC+3)", () => {
+    expect(startOfDay("2026-07-15", TZ).toISOString()).toBe("2026-07-14T23:00:00.000Z");
   });
 
-  it("starts the Cairo day at local midnight (winter time, UTC+2)", () => {
-    expect(startOfDay("2026-12-15", TZ).toISOString()).toBe("2026-12-14T22:00:00.000Z");
+  it("starts the Cairo work day at 2am local (winter time, UTC+2)", () => {
+    expect(startOfDay("2026-12-15", TZ).toISOString()).toBe("2026-12-15T00:00:00.000Z");
   });
 
-  it("maps an instant to the Cairo date, not the UTC date", () => {
-    // 22:30 UTC = 01:30 next day in Cairo (summer)
-    expect(toDateKey(new Date("2026-07-14T22:30:00Z"), TZ)).toBe("2026-07-15");
+  it("maps an instant to the Cairo work day, not the UTC date", () => {
+    // 23:30 UTC = 02:30 next day in Cairo (summer) → اليوم الجديد
+    expect(toDateKey(new Date("2026-07-14T23:30:00Z"), TZ)).toBe("2026-07-15");
+  });
+
+  it("counts work between midnight and 2am on the previous day", () => {
+    // 22:30 UTC = 01:30 Cairo (summer) يوم 15 → لسه يوم 14
+    expect(toDateKey(new Date("2026-07-14T22:30:00Z"), TZ)).toBe("2026-07-14");
+    expect(calendarDateKey(new Date("2026-07-14T22:30:00Z"), TZ)).toBe("2026-07-15");
+    // 2:00 بالظبط = أول يوم العمل الجديد
+    expect(toDateKey(new Date("2026-07-14T23:00:00Z"), TZ)).toBe("2026-07-15");
+  });
+
+  it("round-trips a day key through its start", () => {
+    for (const k of ["2026-01-01", "2026-04-30", "2026-07-15", "2026-10-29", "2026-10-30", "2026-12-31"]) {
+      expect(toDateKey(startOfDay(k, TZ), TZ)).toBe(k);
+      expect(toDateKey(new Date(startOfDay(addDays(k, 1), TZ).getTime() - 1), TZ)).toBe(k);
+    }
   });
 
   it("adds days across month boundaries", () => {
@@ -72,7 +88,7 @@ describe("workedMs", () => {
     expect(ms).toBe(5 * HOUR_MS);
   });
 
-  it("clips sessions that cross midnight into the requested day", () => {
+  it("clips sessions that cross the 2am day boundary into the requested day", () => {
     const ms = workedMs([{ startedAt: at(22), endedAt: at(26), breaks: [] }], start, end);
     expect(ms).toBe(2 * HOUR_MS);
   });

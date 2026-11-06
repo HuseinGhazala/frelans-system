@@ -4,7 +4,7 @@
  */
 import { MENTION_RE, mentionToken, plainText } from "../../lib/chat/mentions";
 import type { ChatMessage, ConversationMemberInfo, ConversationSummary, PresenceStatus } from "../../lib/chat/types";
-import { addDays, toDateKey } from "../../lib/time";
+import { addDays, calendarDateKey as toDateKey } from "../../lib/time";
 
 // ───────────── عرض نص الرسالة ─────────────
 
