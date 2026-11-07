@@ -25,7 +25,7 @@ export function LeaveRequestForm({ today }: { today: string }) {
   return (
     <form ref={ref} onSubmit={action} className="space-y-4 p-5">
       <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="نوع الإجازة" htmlFor="type" error={e.type}>
+        <Field label="نوع الإجازة" htmlFor="type" error={e.type} hint={type === "CASUAL" ? "العارضة: بحد أقصى 3 أيام في الشهر" : undefined}>
           <Select id="type" name="type" value={type} onChange={(ev) => setType(ev.target.value)}>
             {TYPES.map(([v, l]) => (
               <option key={v} value={v}>{l}</option>

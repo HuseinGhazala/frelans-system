@@ -1,6 +1,7 @@
 import "server-only";
 import type { LeaveType } from "@/generated/prisma/enums";
 import { daysBetween, holidaysBetween } from "./attendance";
+import { DEFAULT_CASUAL_DAYS } from "./leave-rules";
 import { db } from "./db";
 import { getSettings } from "./settings";
 import { weekdayOf, type DateKey } from "./time";
@@ -82,7 +83,7 @@ export async function leaveBalances(userId: string, year: number): Promise<Balan
   };
   const allowance: Record<LeaveType, number | null> = {
     ANNUAL: 0,
-    CASUAL: profile?.casualLeaveDays ?? 6,
+    CASUAL: profile?.casualLeaveDays ?? DEFAULT_CASUAL_DAYS,
     SICK: null,
     UNPAID: null,
   };

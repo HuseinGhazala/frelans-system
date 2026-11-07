@@ -6,7 +6,8 @@ import { notifyLeaveRequest } from "@/lib/alerts";
 import { audit } from "@/lib/audit";
 import { requireAdmin, requireEmployee } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
-import { LEAVE_LABEL, LEAVE_TYPES, leaveBalances, leaveWorkingDays } from "@/lib/leaves";
+import { CASUAL_MAX_PER_MONTH, casualMonthOverflow, monthLabel } from "@/lib/leave-rules";
+import { dateKeyOf, LEAVE_LABEL, LEAVE_TYPES, leaveBalances, leaveWorkingDays } from "@/lib/leaves";
 import { sendMail } from "@/lib/mail";
 import { getSettings } from "@/lib/settings";
 import { addDays, toDateKey } from "@/lib/time";
@@ -35,7 +36,8 @@ export async function requestLeave(_: ActionState, formData: FormData): Promise<
   if (startDate < earliest) return { fieldErrors: { startDate: [type === "SICK" ? "مينفعش أقدم من 30 يوم" : "مينفعش تاريخ فات"] } };
   if (endDate > addDays(today, 366)) return { fieldErrors: { endDate: ["التاريخ بعيد جدًا"] } };
 
-  const days = (await leaveWorkingDays(startDate, endDate)).length;
+  const workingDays = await leaveWorkingDays(startDate, endDate);
+  const days = workingDays.length;
   if (days === 0) return { error: "الفترة دي كلها إجازات أسبوعية أو رسمية" };
 
   const overlap = await db.leaveRequest.findFirst({
@@ -49,6 +51,28 @@ export async function requestLeave(_: ActionState, formData: FormData): Promise<
   if (overlap) return { error: "عندك طلب إجازة تاني في نفس الفترة" };
 
   if (type === "CASUAL") {
+    // حد شهري: مش أكتر من CASUAL_MAX_PER_MONTH أيام عارضة في الشهر (المقبولة + المستنية + الطلب ده)
+    const monthStart = `${startDate.slice(0, 7)}-01`;
+    const monthEnd = addDays(`${endDate.slice(0, 7)}-01`, 40).slice(0, 7) + "-01";
+    const others = await db.leaveRequest.findMany({
+      where: {
+        userId: user.id,
+        type: "CASUAL",
+        status: { in: ["PENDING", "APPROVED"] },
+        startDate: { lt: new Date(`${monthEnd}T00:00:00Z`) },
+        endDate: { gte: new Date(`${monthStart}T00:00:00Z`) },
+      },
+    });
+    const existing = (await Promise.all(others.map((r) => leaveWorkingDays(dateKeyOf(r.startDate), dateKeyOf(r.endDate))))).flat();
+    const over = casualMonthOverflow(workingDays, existing);
+    if (over) {
+      return {
+        error: `مينفعش أكتر من ${CASUAL_MAX_PER_MONTH} أيام عارضة في الشهر. ${monthLabel(over.month)}: ${
+          over.available > 0 ? `فاضلك ${over.available} يوم بس` : "خلصت الـ 3 أيام بتوع الشهر"
+        }`,
+      };
+    }
+
     const balance = (await leaveBalances(user.id, Number(startDate.slice(0, 4)))).find((b) => b.type === type)!;
     const available = (balance.remaining ?? 0) - balance.pending;
     if (days > available) return { error: `رصيد الإجازة ${LEAVE_LABEL[type]} مش كفاية (متاح ${Math.max(0, available)} يوم)` };

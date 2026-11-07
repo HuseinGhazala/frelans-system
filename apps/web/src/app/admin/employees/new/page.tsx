@@ -26,7 +26,7 @@ export default async function NewEmployeePage() {
           hiredAt: "",
           monthlySalary: "",
           dailyHours: String(attendance.defaultDailyHours),
-          casualLeaveDays: "6",
+          casualLeaveDays: "12",
           screenshotIntervalMin: "",
           idleThresholdMin: "",
           blurScreenshots: "default",
