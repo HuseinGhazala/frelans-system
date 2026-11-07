@@ -9,7 +9,6 @@ import { FormMessage } from "@/components/ui/form-message";
 import { useFormAction } from "@/components/ui/use-form-action";
 
 const TYPES = [
-  ["ANNUAL", "سنوية"],
   ["CASUAL", "عارضة"],
   ["SICK", "مرضية"],
   ["UNPAID", "بدون مرتب"],
@@ -18,7 +17,7 @@ const TYPES = [
 export function LeaveRequestForm({ today }: { today: string }) {
   const [state, action, pending] = useFormAction(requestLeave);
   const ref = useRef<HTMLFormElement>(null);
-  const [type, setType] = useState("ANNUAL");
+  const [type, setType] = useState("CASUAL");
   useEffect(() => {
     if (state?.success) ref.current?.reset();
   }, [state]);

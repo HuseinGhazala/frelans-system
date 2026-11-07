@@ -5,7 +5,7 @@ import { ReviewLeave } from "@/components/leaves/leave-ui";
 import { Avatar } from "@/components/ui/badge";
 import { Card, EmptyState, PageHeader } from "@/components/ui/card";
 import { db } from "@/lib/db";
-import { LEAVE_LABEL, leaveBalances } from "@/lib/leaves";
+import { LEAVE_LABEL, LEAVE_TYPES, leaveBalances } from "@/lib/leaves";
 import { getSettings } from "@/lib/settings";
 import { toDateKey } from "@/lib/time";
 
@@ -105,7 +105,7 @@ async function Balances() {
           <thead className="bg-surface-2 text-right text-xs text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">الموظف</th>
-              {(["ANNUAL", "CASUAL", "SICK", "UNPAID"] as const).map((t) => (
+              {LEAVE_TYPES.map((t) => (
                 <th key={t} className="px-4 py-3 font-medium">{LEAVE_LABEL[t]}</th>
               ))}
             </tr>

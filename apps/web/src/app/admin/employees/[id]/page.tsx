@@ -130,7 +130,6 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
             hiredAt: employee.hiredAt?.toISOString().slice(0, 10) ?? "",
             monthlySalary: p?.monthlySalary.toString() ?? "",
             dailyHours: p?.dailyHours.toString() ?? String(settings.attendance.defaultDailyHours),
-            annualLeaveDays: String(p?.annualLeaveDays ?? 21),
             casualLeaveDays: String(p?.casualLeaveDays ?? 6),
             screenshotIntervalMin: p?.screenshotIntervalMin?.toString() ?? "",
             idleThresholdMin: p?.idleThresholdMin?.toString() ?? "",

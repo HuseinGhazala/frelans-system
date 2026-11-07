@@ -12,6 +12,12 @@ export const LEAVE_LABEL: Record<LeaveType, string> = {
   UNPAID: "بدون مرتب",
 };
 
+/**
+ * الأنواع اللي الموظف يقدر يطلبها. السنوية اتلغت (نوفمبر 2026) بقرار صاحب الشغل:
+ * الرصيد الوحيد بقى العارضة. النوع ANNUAL لسه في قاعدة البيانات عشان أي طلب قديم يفضل يتعرض.
+ */
+export const LEAVE_TYPES = ["CASUAL", "SICK", "UNPAID"] as const satisfies readonly LeaveType[];
+
 export const LEAVE_STATUS_LABEL = {
   PENDING: "قيد المراجعة",
   APPROVED: "مقبولة",
@@ -57,7 +63,7 @@ export async function approvedLeaveDays(userIds: string[], fromKey: DateKey, toK
 
 export type Balance = { type: LeaveType; allowance: number | null; used: number; pending: number; remaining: number | null };
 
-/** رصيد الإجازات لموظف في سنة (السنوية والعارضة ليهم رصيد؛ المرضية وبدون مرتب بتتعد بس) */
+/** رصيد الإجازات لموظف في سنة (العارضة ليها رصيد؛ المرضية وبدون مرتب بتتعد بس) */
 export async function leaveBalances(userId: string, year: number): Promise<Balance[]> {
   const from = `${year}-01-01`;
   const to = `${year}-12-31`;
@@ -75,12 +81,12 @@ export async function leaveBalances(userId: string, year: number): Promise<Balan
     return daysBetween(a, b).filter((k) => !general.weekendDays.includes(weekdayOf(k)) && !holidays.has(k)).length;
   };
   const allowance: Record<LeaveType, number | null> = {
-    ANNUAL: profile?.annualLeaveDays ?? 21,
+    ANNUAL: 0,
     CASUAL: profile?.casualLeaveDays ?? 6,
     SICK: null,
     UNPAID: null,
   };
-  return (["ANNUAL", "CASUAL", "SICK", "UNPAID"] as LeaveType[]).map((type) => {
+  return LEAVE_TYPES.map((type) => {
     const used = rows.filter((r) => r.type === type && r.status === "APPROVED").reduce((t, r) => t + count(r), 0);
     const pending = rows.filter((r) => r.type === type && r.status === "PENDING").reduce((t, r) => t + count(r), 0);
     const a = allowance[type];

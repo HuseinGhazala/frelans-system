@@ -18,7 +18,6 @@ export type EmployeeFormValues = {
   hiredAt: string;
   monthlySalary: string;
   dailyHours: string;
-  annualLeaveDays: string;
   casualLeaveDays: string;
   screenshotIntervalMin: string;
   idleThresholdMin: string;
@@ -109,9 +108,6 @@ export function EmployeeForm({
           </Field>
           <Field label="عدد الساعات اليومية المطلوبة" htmlFor="dailyHours" error={e.dailyHours} className={mode === "TASKS" ? "hidden" : undefined}>
             <Input id="dailyHours" name="dailyHours" type="number" min={1} max={24} step="0.5" dir="ltr" defaultValue={defaults.dailyHours} required />
-          </Field>
-          <Field label="رصيد الإجازات السنوية (يوم)" htmlFor="annualLeaveDays" error={e.annualLeaveDays}>
-            <Input id="annualLeaveDays" name="annualLeaveDays" type="number" min={0} max={60} dir="ltr" defaultValue={defaults.annualLeaveDays} required />
           </Field>
           <Field label="رصيد الإجازات العارضة (يوم)" htmlFor="casualLeaveDays" error={e.casualLeaveDays}>
             <Input id="casualLeaveDays" name="casualLeaveDays" type="number" min={0} max={60} dir="ltr" defaultValue={defaults.casualLeaveDays} required />

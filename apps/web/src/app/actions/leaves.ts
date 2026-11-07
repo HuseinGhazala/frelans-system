@@ -6,7 +6,7 @@ import { notifyLeaveRequest } from "@/lib/alerts";
 import { audit } from "@/lib/audit";
 import { requireAdmin, requireEmployee } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
-import { LEAVE_LABEL, leaveBalances, leaveWorkingDays } from "@/lib/leaves";
+import { LEAVE_LABEL, LEAVE_TYPES, leaveBalances, leaveWorkingDays } from "@/lib/leaves";
 import { sendMail } from "@/lib/mail";
 import { getSettings } from "@/lib/settings";
 import { addDays, toDateKey } from "@/lib/time";
@@ -15,7 +15,7 @@ import type { ActionState } from "./types";
 
 const requestSchema = z
   .object({
-    type: z.enum(["ANNUAL", "CASUAL", "SICK", "UNPAID"], { error: "اختار نوع الإجازة" }),
+    type: z.enum(LEAVE_TYPES, { error: "اختار نوع الإجازة" }),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "اختار تاريخ البداية" }),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "اختار تاريخ النهاية" }),
     reason: z.string().trim().max(500).optional(),
@@ -48,7 +48,7 @@ export async function requestLeave(_: ActionState, formData: FormData): Promise<
   });
   if (overlap) return { error: "عندك طلب إجازة تاني في نفس الفترة" };
 
-  if (type === "ANNUAL" || type === "CASUAL") {
+  if (type === "CASUAL") {
     const balance = (await leaveBalances(user.id, Number(startDate.slice(0, 4)))).find((b) => b.type === type)!;
     const available = (balance.remaining ?? 0) - balance.pending;
     if (days > available) return { error: `رصيد الإجازة ${LEAVE_LABEL[type]} مش كفاية (متاح ${Math.max(0, available)} يوم)` };
