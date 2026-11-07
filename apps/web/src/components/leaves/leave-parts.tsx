@@ -15,7 +15,7 @@ export function LeaveTypeBadge({ type }: { type: LeaveType }) {
 
 export function BalanceCards({ balances }: { balances: Balance[] }) {
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
       {balances.map((b) => (
         <Card key={b.type} className="p-5">
           <p className="text-sm text-muted">إجازة {LEAVE_LABEL[b.type]}</p>
