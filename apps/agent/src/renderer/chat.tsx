@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject, type ReactNode } from "react";
-import { readersOf } from "../core/chat-state";
+import { readersOf, withinEditWindow } from "../core/chat-state";
 import { decodeMentions, encodeMentions, formatBytes, formatDuration, mentionQuery, segments, type MentionPick } from "../core/chat-text";
 import {
   MAX_ATTACHMENTS_PER_MESSAGE,
@@ -656,6 +656,12 @@ function ConversationView({
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string | null>(focusMessageId);
   const [dragging, setDragging] = useState(false);
+  // الساعة بتتحدث كل 30 ثانية عشان زراير التعديل والحذف تختفي لما المدة تخلص
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
   const composerRef = useRef<ComposerHandle | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
@@ -818,6 +824,7 @@ function ConversationView({
                   setEditing(m);
                 }}
                 onDelete={() => void remove(m)}
+                canModify={withinEditWindow(m.createdAt, nowTick, s.editWindowMin)}
                 onJump={(id) => setHighlight(id)}
                 onImage={setLightbox}
               />
@@ -870,6 +877,7 @@ function MessageBubble({
   onReply,
   onEdit,
   onDelete,
+  canModify,
   onJump,
   onImage,
 }: {
@@ -884,6 +892,8 @@ function MessageBubble({
   onReply: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  /** لسه في مدة التعديل والحذف */
+  canModify: boolean;
   onJump: (id: string) => void;
   onImage: (url: string) => void;
 }) {
@@ -946,7 +956,7 @@ function MessageBubble({
       {!deleted && (
         <div className="msg-actions">
           <button title="رد" onClick={onReply}>↩</button>
-          {mine && (
+          {mine && canModify && (
             <>
               <button title="تعديل" onClick={onEdit}>✎</button>
               <button title="حذف" onClick={onDelete}>🗑</button>

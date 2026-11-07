@@ -237,6 +237,16 @@ export class ChatMain {
     }
   }
 
+  /** مدة التعديل والحذف من السيرفر (null لو سيرفر قديم مفيهوش الـ endpoint) */
+  async config(): Promise<{ editWindowMin: number | null }> {
+    try {
+      const { editWindowMin } = await this.call<{ editWindowMin: number }>("GET", "/config");
+      return { editWindowMin: typeof editWindowMin === "number" ? editWindowMin : null };
+    } catch {
+      return { editWindowMin: null };
+    }
+  }
+
   async users() {
     const { users } = await this.call<{ users: ChatUser[] }>("GET", "/users");
     return users;
@@ -355,6 +365,7 @@ export function registerChatIpc(chat: ChatMain, isOurWindow: (e: IpcMainInvokeEv
   handle("chat:addMembers", (id, userIds) => chat.addMembers(str(id), ids(userIds)));
   handle("chat:removeMember", (id, userId) => chat.removeMember(str(id), str(userId)));
   handle("chat:users", () => chat.users());
+  handle("chat:config", () => chat.config());
   handle("chat:search", (q, conversationId) => chat.search(text(q, 200), optStr(conversationId)));
   handle("chat:upload", (file) => {
     const f = (file ?? {}) as Record<string, unknown>;

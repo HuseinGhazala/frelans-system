@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fmtRange, LeaveStatusBadge, LeaveTypeBadge } from "@/components/leaves/leave-parts";
-import { ReviewLeave } from "@/components/leaves/leave-ui";
+import { AdminCancelLeave, AdminLeaveForm, ReviewLeave } from "@/components/leaves/leave-ui";
 import { Avatar } from "@/components/ui/badge";
-import { Card, EmptyState, PageHeader } from "@/components/ui/card";
+import { Card, CardHeader, EmptyState, PageHeader } from "@/components/ui/card";
 import { db } from "@/lib/db";
 import { LEAVE_LABEL, LEAVE_TYPES, leaveBalances } from "@/lib/leaves";
 import { getSettings } from "@/lib/settings";
@@ -18,6 +18,7 @@ export default async function LeavesPage({ searchParams }: PageProps<"/admin/lea
     { id: "pending", label: `الطلبات المعلقة${pendingCount ? ` (${pendingCount})` : ""}` },
     { id: "all", label: "كل الطلبات" },
     { id: "balances", label: "الأرصدة" },
+    { id: "new", label: "تسجيل إجازة لموظف" },
   ];
   const tab = TABS.find((t) => t.id === sp.tab)?.id ?? "pending";
 
@@ -39,7 +40,7 @@ export default async function LeavesPage({ searchParams }: PageProps<"/admin/lea
           </Link>
         ))}
       </nav>
-      {tab === "balances" ? <Balances /> : <Requests pendingOnly={tab === "pending"} />}
+      {tab === "balances" ? <Balances /> : tab === "new" ? <NewLeave /> : <Requests pendingOnly={tab === "pending"} />}
     </>
   );
 }
@@ -86,10 +87,22 @@ async function Requests({ pendingOnly }: { pendingOnly: boolean }) {
               </div>
             </div>
             {r.status === "PENDING" && <ReviewLeave id={r.id} />}
+            {r.status === "APPROVED" && <AdminCancelLeave id={r.id} />}
           </Card>
         );
       })}
     </div>
+  );
+}
+
+async function NewLeave() {
+  const { general } = await getSettings();
+  const employees = await db.user.findMany({ where: { role: "EMPLOYEE", active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+  return (
+    <Card>
+      <CardHeader title="تسجيل إجازة لموظف" />
+      <AdminLeaveForm employees={employees} today={toDateKey(new Date(), general.timezone)} />
+    </Card>
   );
 }
 

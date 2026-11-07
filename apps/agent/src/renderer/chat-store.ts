@@ -17,20 +17,22 @@ export type ChatStoreState = {
   /** conversationId → userId → {name, until} */
   typing: Record<string, Record<string, { name: string; until: number }>>;
   users: ChatUser[] | null;
+  /** مدة التعديل والحذف بالدقايق (من السيرفر) */
+  editWindowMin: number | null;
 };
 
 const TYPING_MS = 5000;
 const emptyThread = (): Thread => ({ items: [], hasMore: false, loading: false, loaded: false, error: null });
 
 export class ChatStore {
-  private s: ChatStoreState = { status: "closed", list: emptyChatState(), loaded: false, threads: {}, typing: {}, users: null };
+  private s: ChatStoreState = { status: "closed", list: emptyChatState(), loaded: false, threads: {}, typing: {}, users: null, editWindowMin: null };
   private listeners = new Set<() => void>();
   private typingTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private api: RasedApi["chat"]) {
     api.onSnapshot((snap) => {
       // snapshot فاضي = تسجيل خروج
-      if (!snap.state.me && snap.state.conversations.length === 0) this.set({ status: snap.status, list: snap.state, loaded: false, threads: {}, typing: {}, users: null });
+      if (!snap.state.me && snap.state.conversations.length === 0) this.set({ status: snap.status, list: snap.state, loaded: false, threads: {}, typing: {}, users: null, editWindowMin: this.s.editWindowMin });
       else this.set({ ...this.s, status: snap.status, list: snap.state, loaded: true });
     });
     api.onStatus((status) => this.set({ ...this.s, status }));
@@ -147,6 +149,12 @@ export class ChatStore {
   // ───────────── التحميل ─────────────
 
   async loadList() {
+    if (this.s.editWindowMin == null) {
+      void this.api
+        .config()
+        .then((c) => this.set({ ...this.s, editWindowMin: c.editWindowMin }))
+        .catch(() => {});
+    }
     try {
       const conversations = await this.api.conversations();
       this.set({ ...this.s, list: { ...this.s.list, conversations }, loaded: true });

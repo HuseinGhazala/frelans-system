@@ -48,6 +48,7 @@ const chat = {
   addMembers: (id: string, userIds: string[]) => call<ConversationSummary>("chat:addMembers", id, userIds),
   removeMember: (id: string, userId: string) => call<void>("chat:removeMember", id, userId),
   users: () => call<ChatUser[]>("chat:users"),
+  config: () => call<{ editWindowMin: number | null }>("chat:config"),
   search: (q: string, conversationId: string | null = null) => call<SearchResult[]>("chat:search", q, conversationId),
   upload: (file: { name: string; mime: string; data: Uint8Array; kind: AttachmentKind | null; durationSec: number | null }) => call<ChatAttachment>("chat:upload", file),
   attachment: (id: string) => call<{ mime: string; data: Uint8Array }>("chat:attachment", id),

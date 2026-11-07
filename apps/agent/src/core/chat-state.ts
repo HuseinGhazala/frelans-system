@@ -126,3 +126,12 @@ export function readersOf(message: Pick<ChatMessage, "senderId" | "createdAt">, 
   const read = others.filter((m) => m.lastReadAt && Date.parse(m.lastReadAt) >= at).length;
   return { read, total: others.length };
 }
+
+/**
+ * صاحب الرسالة يقدر يعدّل أو يمسح لحد ما مدة التعديل تخلص (من إعدادات الشات على السيرفر).
+ * editWindowMin = null يعني السيرفر ما قالش (نسخة قديمة) → نسيب الزراير والسيرفر هو اللي يرفض.
+ */
+export function withinEditWindow(createdAt: string, now: number, editWindowMin: number | null): boolean {
+  if (editWindowMin == null) return true;
+  return now - Date.parse(createdAt) < editWindowMin * 60_000;
+}

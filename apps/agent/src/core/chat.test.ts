@@ -325,3 +325,15 @@ describe("ChatStream", () => {
     s.stop();
   });
 });
+
+import { withinEditWindow } from "./chat-state";
+describe("edit window", () => {
+  const t0 = Date.parse("2026-11-07T10:00:00Z");
+  it("allows edits inside the window and hides them after", () => {
+    expect(withinEditWindow("2026-11-07T10:00:00Z", t0 + 14 * 60_000, 15)).toBe(true);
+    expect(withinEditWindow("2026-11-07T10:00:00Z", t0 + 15 * 60_000, 15)).toBe(false);
+  });
+  it("keeps the buttons when the server did not say (old server)", () => {
+    expect(withinEditWindow("2026-11-07T10:00:00Z", t0 + 99 * 60_000, null)).toBe(true);
+  });
+});
