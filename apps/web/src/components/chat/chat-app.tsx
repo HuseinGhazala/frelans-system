@@ -55,6 +55,10 @@ export function ChatApp(props: ChatAppProps) {
   );
 }
 
+/** المراقبة: كل قد إيه نحدّث المحادثة المفتوحة وقايمة المحادثات */
+const MONITOR_POLL_MS = 10_000;
+const MONITOR_LIST_POLL_MS = 60_000;
+
 function ChatAppInner({ mode, me, initialConversations, users, timezone: tz, editWindowMin, initialUserFilter, toolbar }: ChatAppProps) {
   const monitor = mode === "monitor";
   const searchParams = useSearchParams();
@@ -185,6 +189,22 @@ function ChatAppInner({ mode, me, initialConversations, users, timezone: tz, edi
     return () => clearTimeout(t);
   }, [monitor, activeId, activeIsMember, activeUnread, focusTick]);
 
+  // ───── المراقبة: المحادثات اللي الأدمن مش عضو فيها ما بيوصلهاش أحداث لحظية، فبنحدّثها كل شوية ─────
+  const monitorPollId = monitor && activeId && !activeIsMember ? activeId : null;
+  useEffect(() => {
+    if (!monitorPollId) return;
+    const tick = async () => {
+      if (document.visibilityState !== "visible") return;
+      const r = await getMessagesAction(monitorPollId);
+      if (!r.ok) return;
+      const cur = stateRef.current.messages[monitorPollId];
+      // دمج مع الموجود (عشان الصفحات القديمة اللي اتحمّلت ما تضيعش) + تحديث التعديلات والحذف
+      dispatch({ type: "messages.loaded", conversationId: monitorPollId, messages: r.data.messages, hasMore: cur ? cur.hasMore : r.data.hasMore, older: Boolean(cur) });
+    };
+    const t = setInterval(() => void tick(), MONITOR_POLL_MS);
+    return () => clearInterval(t);
+  }, [monitorPollId]);
+
   // ───── إعادة المزامنة بعد انقطاع الاتصال ─────
   const reloadList = useCallback(
     async (filter: string) => {
@@ -194,6 +214,16 @@ function ChatAppInner({ mode, me, initialConversations, users, timezone: tz, edi
     },
     [monitor],
   );
+
+
+  // قايمة المحادثات في المراقبة (آخر رسالة والترتيب) بتتحدث كل دقيقة
+  useEffect(() => {
+    if (!monitor) return;
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") void reloadList(userFilter);
+    }, MONITOR_LIST_POLL_MS);
+    return () => clearInterval(t);
+  }, [monitor, reloadList, userFilter]);
 
   const resync = async () => {
     await reloadList(userFilter);
