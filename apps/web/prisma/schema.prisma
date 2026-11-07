@@ -67,7 +67,7 @@ model EmployeeProfile {
   blurScreenshots       Boolean?
   idleThresholdMin      Int?
   annualLeaveDays       Int      @default(21)
-  casualLeaveDays       Int      @default(6)
+  casualLeaveDays       Int      @default(12)
   trelloMemberId        String?
 }
 

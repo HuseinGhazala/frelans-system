@@ -109,7 +109,7 @@ export function EmployeeForm({
           <Field label="عدد الساعات اليومية المطلوبة" htmlFor="dailyHours" error={e.dailyHours} className={mode === "TASKS" ? "hidden" : undefined}>
             <Input id="dailyHours" name="dailyHours" type="number" min={1} max={24} step="0.5" dir="ltr" defaultValue={defaults.dailyHours} required />
           </Field>
-          <Field label="رصيد الإجازات العارضة (يوم)" htmlFor="casualLeaveDays" error={e.casualLeaveDays}>
+          <Field label="رصيد الإجازات العارضة (يوم في السنة)" htmlFor="casualLeaveDays" error={e.casualLeaveDays} hint="بحد أقصى 3 أيام في الشهر">
             <Input id="casualLeaveDays" name="casualLeaveDays" type="number" min={0} max={60} dir="ltr" defaultValue={defaults.casualLeaveDays} required />
           </Field>
         </div>
