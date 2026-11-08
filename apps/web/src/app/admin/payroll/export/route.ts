@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { csvResponse } from "@/lib/csv";
 import { db } from "@/lib/db";
 import { adjustmentsOf } from "@/lib/payroll";
+import { adjustmentUnitLabel } from "@/lib/payroll-calc";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
         Number(i.surplusHours),
         Number(i.approvedOvertimeHours),
         Number(i.overtimePay),
-        adj.map((a) => `${a.kind === "BONUS" ? "+" : "-"}${a.amount} ${a.reason}`).join(" | "),
+        adj.map((a) => `${a.kind === "BONUS" ? "+" : "-"}${a.amount}${adjustmentUnitLabel(a) ? ` (${adjustmentUnitLabel(a)})` : ""} ${a.reason}`).join(" | "),
         Number(i.net),
         period.status === "APPROVED" ? "معتمد" : "مسودة",
       ];

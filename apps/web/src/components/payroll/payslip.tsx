@@ -1,6 +1,7 @@
 import type { PayrollItem } from "@/generated/prisma/client";
 import { Card } from "@/components/ui/card";
 import { adjustmentsOf, lateTasksOf } from "@/lib/payroll";
+import { adjustmentUnitLabel } from "@/lib/payroll-calc";
 import { formatMoney } from "@/lib/utils";
 
 /** كشف مرتب موظف (للعرض والطباعة) */
@@ -56,7 +57,10 @@ export function Payslip({ item, name, monthLabel, currency, companyName }: { ite
         )}
         {adjustments.map((a, i) => (
           <div key={i} className={`flex justify-between ${a.kind === "BONUS" ? "text-success" : "text-danger"}`}>
-            <dt>{a.kind === "BONUS" ? "مكافأة" : "خصم"}: {a.reason}</dt>
+            <dt>
+              {a.kind === "BONUS" ? "مكافأة" : "خصم"}
+              {adjustmentUnitLabel(a) ? ` ${adjustmentUnitLabel(a)}` : ""}: {a.reason}
+            </dt>
             <dd className="tabular-nums">{a.kind === "BONUS" ? "+" : "−"} {m(a.amount)}</dd>
           </div>
         ))}

@@ -2,7 +2,7 @@ import "server-only";
 import type { PayrollItem } from "@/generated/prisma/client";
 import { holidaysBetween, rangeSummary } from "./attendance";
 import { db } from "./db";
-import { computePayroll, computeTaskPayroll, type Adjustment } from "./payroll-calc";
+import { computePayroll, computeTaskPayroll, priceAdjustments, salaryRates, type Adjustment } from "./payroll-calc";
 import { employeeDelivery } from "./delivery";
 import { getSettings } from "./settings";
 import { addDays, daysInMonth, HOUR_MS, startOfDay, workingDaysInMonth } from "./time";
@@ -71,13 +71,15 @@ export async function refreshPayroll(year: number, month: number, now = new Date
     const s = summaries.find((x) => x.userId === e.id)!;
     const dailyHours = Number(e.profile!.dailyHours);
     const old = prev.get(e.id);
+    // تعديلات اليوم/الساعة بتتحسب من المرتب الحالي (لو المرتب اتغير القيمة بتتحدث)
+    const pricedAdjustments = priceAdjustments(old ? adjustmentsOf(old) : [], salaryRates(Number(e.profile!.monthlySalary), fullMonthWorkingDays, dailyHours));
 
     if (e.profile!.workMode === "TASKS") {
       // التاسكات المتأخرة في الشهر: للمراجعة، والخصم بيتحط يدوي
       const late = (await employeeDelivery(e.id, monthFrom, monthTo, now))
         .filter((c) => (c.state === "DONE_LATE" || c.state === "OVERDUE") && ((c.due && c.due < monthTo) || (c.completedAt && c.completedAt >= monthFrom)))
         .map((c) => ({ id: c.id, name: c.name, url: c.url, due: c.due?.toISOString() ?? null, completedAt: c.completedAt?.toISOString() ?? null, lateDays: c.lateDays, state: c.state }));
-      const adjustments = old ? adjustmentsOf(old) : [];
+      const adjustments = pricedAdjustments;
       const r = computeTaskPayroll({
         monthlySalary: Number(e.profile!.monthlySalary),
         fullMonthWorkingDays,
@@ -101,6 +103,7 @@ export async function refreshPayroll(year: number, month: number, now = new Date
         overtimeMultiplier: 1,
         overtimePay: 0,
         lateTasks: late,
+        adjustments,
         net: r.net,
       };
       await db.payrollItem.upsert({
@@ -119,7 +122,7 @@ export async function refreshPayroll(year: number, month: number, now = new Date
       paidLeaveHours: hoursOf(s.paidLeaveMs),
       approvedOvertimeHours: old ? Number(old.approvedOvertimeHours) : 0,
       overtimeMultiplier: multiplier,
-      adjustments: old ? adjustmentsOf(old) : [],
+      adjustments: pricedAdjustments,
     };
     const r = computePayroll(input);
     const data = {
@@ -138,6 +141,7 @@ export async function refreshPayroll(year: number, month: number, now = new Date
       approvedOvertimeHours: r.approvedOvertimeHours,
       overtimeMultiplier: multiplier,
       overtimePay: r.overtimePay,
+      adjustments: pricedAdjustments,
       net: r.net,
     };
     await db.payrollItem.upsert({
@@ -154,9 +158,11 @@ export async function refreshPayroll(year: number, month: number, now = new Date
 export async function saveRecomputed(itemId: string, patch: { approvedOvertimeHours?: number; adjustments?: Adjustment[] }) {
   const item = await db.payrollItem.findUniqueOrThrow({ where: { id: itemId }, include: { period: true, user: { include: { profile: true } } } });
   if (item.period.status === "APPROVED") throw new PayrollLocked("مرتبات الشهر ده معتمدة");
-  const merged = { ...item, ...(patch.approvedOvertimeHours !== undefined && { approvedOvertimeHours: patch.approvedOvertimeHours }), ...(patch.adjustments && { adjustments: patch.adjustments }) } as PayrollItem;
   const { fullMonthWorkingDays } = await monthContext(item.period.year, item.period.month);
-  const r = recompute(merged, fullMonthWorkingDays, Number(item.user.profile?.dailyHours ?? 8));
+  const dailyHours = Number(item.user.profile?.dailyHours ?? 8);
+  const adjustments = patch.adjustments && priceAdjustments(patch.adjustments, salaryRates(Number(item.monthlySalary), fullMonthWorkingDays, dailyHours));
+  const merged = { ...item, ...(patch.approvedOvertimeHours !== undefined && { approvedOvertimeHours: patch.approvedOvertimeHours }), ...(adjustments && { adjustments }) } as PayrollItem;
+  const r = recompute(merged, fullMonthWorkingDays, dailyHours);
   await db.payrollItem.update({
     where: { id: itemId },
     data: {

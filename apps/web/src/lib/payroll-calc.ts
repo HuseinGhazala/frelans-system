@@ -6,7 +6,41 @@
  * - الناقص × سعر الساعة = خصم
  * - الزيادة = "إضافي مقترح"، وبيتصرف بس اللي الأدمن اعتمده × سعر الساعة × المعامل
  */
-export type Adjustment = { kind: "BONUS" | "DEDUCTION"; amount: number; reason: string };
+/**
+ * مكافأة أو خصم يدوي. unit: فلوس (المبلغ مكتوب)، أو يوم/ساعة (quantity × سعر اليوم/الساعة من مرتب الموظف).
+ * amount دايمًا بالفلوس — لليوم والساعة بيتحسب تلقائي ويتحدّث لو المرتب اتغير.
+ * التعديلات القديمة (قبل الوحدات) مفيهاش unit = فلوس.
+ */
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+export type AdjustmentUnit = "MONEY" | "DAY" | "HOUR";
+export type Adjustment = { kind: "BONUS" | "DEDUCTION"; amount: number; reason: string; unit?: AdjustmentUnit; quantity?: number };
+
+/** سعر اليوم والساعة: المرتب ÷ أيام عمل الشهر، و÷ الساعات اليومية */
+export function salaryRates(monthlySalary: number, fullMonthWorkingDays: number, dailyHours: number) {
+  const dayRate = fullMonthWorkingDays > 0 ? monthlySalary / fullMonthWorkingDays : 0;
+  const hourRate = dailyHours > 0 ? dayRate / dailyHours : 0;
+  return { dayRate, hourRate };
+}
+
+/** بيحسب قيمة تعديلات اليوم/الساعة بالفلوس من أسعار المرتب الحالية */
+export function priceAdjustments(list: Adjustment[], rates: { dayRate: number; hourRate: number }): Adjustment[] {
+  return list.map((a) => {
+    if (a.unit === "DAY" && a.quantity != null) return { ...a, amount: r2(a.quantity * rates.dayRate) };
+    if (a.unit === "HOUR" && a.quantity != null) return { ...a, amount: r2(a.quantity * rates.hourRate) };
+    return a;
+  });
+}
+
+const fmtQty = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, "").replace(/\.$/, ""));
+
+/** "خصم يومين" / "مكافأة 3 ساعات" / "خصم" — الكمية بالعربي لليوم والساعة */
+export function adjustmentUnitLabel(a: Adjustment): string | null {
+  if (a.unit !== "DAY" && a.unit !== "HOUR") return null;
+  const q = a.quantity ?? 0;
+  if (a.unit === "DAY") return q === 1 ? "يوم" : q === 2 ? "يومين" : `${fmtQty(q)} ${q > 2 && q <= 10 ? "أيام" : "يوم"}`;
+  return q === 1 ? "ساعة" : q === 2 ? "ساعتين" : `${fmtQty(q)} ${q > 2 && q <= 10 ? "ساعات" : "ساعة"}`;
+}
 
 export type PayrollInput = {
   monthlySalary: number;
@@ -20,7 +54,6 @@ export type PayrollInput = {
   adjustments: Adjustment[];
 };
 
-const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export function computePayroll(i: PayrollInput) {
   const monthHours = i.fullMonthWorkingDays * i.dailyHours;

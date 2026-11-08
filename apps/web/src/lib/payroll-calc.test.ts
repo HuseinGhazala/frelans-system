@@ -64,3 +64,31 @@ describe("computeTaskPayroll", () => {
     expect(computeTaskPayroll({ ...base, unpaidLeaveDays: 2 })).toMatchObject({ deduction: 1000, net: 12000 });
   });
 });
+
+import { adjustmentUnitLabel, priceAdjustments, salaryRates } from "./payroll-calc";
+describe("adjustment units", () => {
+  // 10000 ÷ 25 يوم = 400 لليوم، ÷ 8 ساعات = 50 للساعة
+  const rates = salaryRates(10000, 25, 8);
+  it("computes day and hour rates from salary", () => {
+    expect(rates).toEqual({ dayRate: 400, hourRate: 50 });
+  });
+  it("prices day and hour adjustments and keeps money as is", () => {
+    const priced = priceAdjustments(
+      [
+        { kind: "DEDUCTION", amount: 0, reason: "غياب", unit: "DAY", quantity: 2 },
+        { kind: "DEDUCTION", amount: 0, reason: "تأخير", unit: "HOUR", quantity: 1.5 },
+        { kind: "BONUS", amount: 121, reason: "مكافأة", unit: "MONEY" },
+        { kind: "BONUS", amount: 50, reason: "قديم" },
+      ],
+      rates,
+    );
+    expect(priced.map((a) => a.amount)).toEqual([800, 75, 121, 50]);
+  });
+  it("labels quantities in Arabic", () => {
+    expect(adjustmentUnitLabel({ kind: "DEDUCTION", amount: 0, reason: "", unit: "DAY", quantity: 1 })).toBe("يوم");
+    expect(adjustmentUnitLabel({ kind: "DEDUCTION", amount: 0, reason: "", unit: "DAY", quantity: 2 })).toBe("يومين");
+    expect(adjustmentUnitLabel({ kind: "DEDUCTION", amount: 0, reason: "", unit: "DAY", quantity: 3 })).toBe("3 أيام");
+    expect(adjustmentUnitLabel({ kind: "DEDUCTION", amount: 0, reason: "", unit: "HOUR", quantity: 1.5 })).toBe("1.5 ساعة");
+    expect(adjustmentUnitLabel({ kind: "BONUS", amount: 10, reason: "" })).toBeNull();
+  });
+});
