@@ -6,6 +6,7 @@ import { audit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
 import { adjustmentsOf, PayrollLocked, refreshPayroll, saveRecomputed } from "@/lib/payroll";
+import type { Adjustment } from "@/lib/payroll-calc";
 import type { ActionState } from "./types";
 
 const done = (msg: string): ActionState => {
@@ -42,11 +43,16 @@ export async function setOvertime(itemId: string, hours: number): Promise<Action
   }
 }
 
-const adjSchema = z.object({
-  kind: z.enum(["BONUS", "DEDUCTION"]),
-  amount: z.coerce.number().positive({ error: "المبلغ لازم يكون أكبر من صفر" }).max(10_000_000),
-  reason: z.string().trim().min(1, { error: "اكتب السبب" }).max(200),
-});
+const adjSchema = z
+  .object({
+    kind: z.enum(["BONUS", "DEDUCTION"]),
+    unit: z.enum(["MONEY", "DAY", "HOUR"]).default("MONEY"),
+    /** المبلغ (فلوس) أو عدد الأيام أو الساعات */
+    amount: z.coerce.number().positive({ error: "القيمة لازم تكون أكبر من صفر" }).max(10_000_000),
+    reason: z.string().trim().min(1, { error: "اكتب السبب" }).max(200),
+  })
+  .refine((d) => d.unit !== "DAY" || d.amount <= 31, { error: "أقصى حاجة 31 يوم", path: ["amount"] })
+  .refine((d) => d.unit !== "HOUR" || d.amount <= 300, { error: "أقصى حاجة 300 ساعة", path: ["amount"] });
 
 export async function addAdjustment(itemId: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const admin = await requireAdmin();
@@ -55,8 +61,11 @@ export async function addAdjustment(itemId: string, _: ActionState, formData: Fo
   const item = await db.payrollItem.findUnique({ where: { id: itemId } });
   if (!item) return { error: "الكشف مش موجود" };
   try {
-    await saveRecomputed(itemId, { adjustments: [...adjustmentsOf(item), parsed.data] });
-    await audit(admin.id, "payroll.adjustment_added", { type: "user", id: item.userId }, parsed.data);
+    const { kind, unit, amount, reason } = parsed.data;
+    // اليوم/الساعة: الكمية بتتخزن والمبلغ بيتحسب من المرتب في saveRecomputed
+    const adj: Adjustment = unit === "MONEY" ? { kind, amount, reason, unit } : { kind, amount: 0, reason, unit, quantity: amount };
+    await saveRecomputed(itemId, { adjustments: [...adjustmentsOf(item), adj] });
+    await audit(admin.id, "payroll.adjustment_added", { type: "user", id: item.userId }, { kind, unit, value: amount, reason });
     return done("تمت الإضافة");
   } catch (e) {
     return locked(e);

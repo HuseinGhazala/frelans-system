@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
 import { FormMessage } from "@/components/ui/form-message";
 import { useFormAction } from "@/components/ui/use-form-action";
-import type { Adjustment } from "@/lib/payroll-calc";
+import { adjustmentUnitLabel, type Adjustment } from "@/lib/payroll-calc";
 
 function useAction() {
   const [pending, start] = useTransition();
@@ -69,6 +69,7 @@ export function OvertimeCell({ itemId, surplus, approved, locked }: { itemId: st
 export function Adjustments({ itemId, items, locked, currency }: { itemId: string; items: Adjustment[]; locked: boolean; currency: string }) {
   const [state, action, pending] = useFormAction(addAdjustment.bind(null, itemId));
   const rm = useAction();
+  const [unit, setUnit] = useState<"MONEY" | "DAY" | "HOUR">("MONEY");
   return (
     <div className="space-y-3">
       {items.length === 0 ? (
@@ -79,7 +80,7 @@ export function Adjustments({ itemId, items, locked, currency }: { itemId: strin
             <li key={i} className="flex items-center justify-between gap-2">
               <span>
                 <span className={a.kind === "BONUS" ? "text-success" : "text-danger"}>
-                  {a.kind === "BONUS" ? "+" : "−"} {a.amount.toLocaleString("en-US")} {currency}
+                  {a.kind === "BONUS" ? "+" : "−"} {adjustmentUnitLabel(a) ? `${adjustmentUnitLabel(a)} (${a.amount.toLocaleString("en-US")} ${currency})` : `${a.amount.toLocaleString("en-US")} ${currency}`}
                 </span>{" "}
                 <span className="text-muted">{a.reason}</span>
               </span>
@@ -98,7 +99,22 @@ export function Adjustments({ itemId, items, locked, currency }: { itemId: strin
             <option value="BONUS">مكافأة</option>
             <option value="DEDUCTION">خصم</option>
           </Select>
-          <Input name="amount" type="number" min={0} step="0.01" placeholder="المبلغ" className="h-9 w-28" dir="ltr" required />
+          <Select name="unit" value={unit} onChange={(e) => setUnit(e.target.value as typeof unit)} className="h-9 w-28" aria-label="النوع">
+            <option value="MONEY">مبلغ ({currency})</option>
+            <option value="DAY">أيام</option>
+            <option value="HOUR">ساعات</option>
+          </Select>
+          <Input
+            name="amount"
+            type="number"
+            min={0}
+            step={unit === "MONEY" ? "0.01" : "0.5"}
+            max={unit === "DAY" ? 31 : unit === "HOUR" ? 300 : undefined}
+            placeholder={unit === "MONEY" ? "المبلغ" : unit === "DAY" ? "عدد الأيام" : "عدد الساعات"}
+            className="h-9 w-28"
+            dir="ltr"
+            required
+          />
           <Input name="reason" placeholder="السبب" className="h-9 min-w-32 flex-1" required />
           <Button size="sm" disabled={pending}>إضافة</Button>
         </form>
