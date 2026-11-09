@@ -1,7 +1,7 @@
 {
   "name": "agent",
   "productName": "Rased",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "راصد — برنامج متابعة العمل",
   "main": "dist/main.js",

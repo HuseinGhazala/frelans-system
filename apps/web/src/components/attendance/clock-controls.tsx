@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Coffee, LogIn, LogOut, Play } from "lucide-react";
 import { checkIn, checkOut, endBreak, startBreak } from "@/app/actions/attendance";
 import type { ActionState } from "@/app/actions/types";
@@ -16,13 +17,17 @@ export function ClockControls({
   renderedAt,
   requiredMs,
   allowWeb,
+  autoStop = false,
 }: {
   status: LiveStatus;
   workedMsAtRender: number;
   renderedAt: number;
   requiredMs: number;
   allowWeb: boolean;
+  /** الانصراف التلقائي شغال: الصفحة بتتحدث بعد ما الساعات تكمل عشان تبين إن الحضور اتقفل */
+  autoStop?: boolean;
 }) {
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [state, setState] = useState<ActionState>(null);
   // الوقت اللي فات بيتحسب من ساعة الجهاز نفسه من لحظة فتح الصفحة، عشان فرق الساعة بين الجهاز والسيرفر ما يوقفش العداد
@@ -34,6 +39,14 @@ export function ClockControls({
     const t = setInterval(() => setTick({ key: renderedAt, elapsed: performance.now() - startedAt }), 1000);
     return () => clearInterval(t);
   }, [status, renderedAt]);
+
+  // السيرفر بيقفل الحضور خلال دقيقة من ما الساعات تكمل → نحدّث الصفحة بعدها
+  useEffect(() => {
+    if (!autoStop || status !== "WORKING") return;
+    const left = Math.max(0, requiredMs - workedMsAtRender);
+    const t = setTimeout(() => router.refresh(), left + 70_000);
+    return () => clearTimeout(t);
+  }, [autoStop, status, requiredMs, workedMsAtRender, router]);
 
   const elapsed = tick.key === renderedAt ? tick.elapsed : 0;
   const worked = workedMsAtRender + (status === "WORKING" ? elapsed : 0);

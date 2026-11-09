@@ -1,3 +1,4 @@
+import { stopIfTargetReached } from "@/lib/attendance";
 import { db } from "@/lib/db";
 import { authenticateDevice, jsonError, UNAUTHORIZED } from "@/lib/agent/auth";
 import { syncSchema } from "@/lib/agent/protocol";
@@ -17,6 +18,8 @@ export async function POST(request: Request) {
   await resumeLostSession(device.userId, device.id, minutes);
   await applyEvents(device.userId, device.id, events);
   await saveMinutes(device.userId, minutes);
+  // كمّل ساعاته المطلوبة → انصراف تلقائي (البرنامج بيعرف من الحالة اللي راجعة)
+  await stopIfTargetReached(device.userId).catch((err) => console.error("auto stop failed", err));
   await db.device.update({ where: { id: device.id }, data: { idleSince: idleSince ?? null } });
   // الخمول اتغير (بدأ أو خلص) → حالة الموظف في الشات
   if (Boolean(device.idleSince) !== Boolean(idleSince)) {

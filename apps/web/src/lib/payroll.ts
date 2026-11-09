@@ -38,6 +38,9 @@ export function recompute(item: PayrollItem, fullMonthWorkingDays: number, daily
     approvedOvertimeHours: Number(item.approvedOvertimeHours),
     overtimeMultiplier: Number(item.overtimeMultiplier),
     adjustments: adjustmentsOf(item),
+    // الناقص والزيادة المتخزنين (اتحسبوا من الحضور بالقاعدة اللي كانت شغالة وقت تحديث المسودة)
+    shortHours: Number(item.shortHours),
+    surplusHours: Number(item.surplusHours),
   });
 }
 
@@ -123,6 +126,8 @@ export async function refreshPayroll(year: number, month: number, now = new Date
       approvedOvertimeHours: old ? Number(old.approvedOvertimeHours) : 0,
       overtimeMultiplier: multiplier,
       adjustments: pricedAdjustments,
+      shortHours: hoursOf(s.shortMs),
+      surplusHours: hoursOf(s.surplusMs),
     };
     const r = computePayroll(input);
     const data = {

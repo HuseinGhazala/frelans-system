@@ -60,4 +60,6 @@ export type AgentState = {
   status: AgentStatus;
   session: { id: string; source: "AGENT" | "WEB"; startedAt: string; breakStartedAt: string | null } | null;
   todayWorkedMs: number;
+  /** كمّل ساعاته المطلوبة النهارده والانصراف التلقائي شغال (البرنامج بيعرض تنبيه ومايسجلش حضور تاني) */
+  dayComplete?: boolean;
 };

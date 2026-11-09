@@ -34,9 +34,14 @@ function readSection(section: SettingsSection, fd: FormData, current: Settings):
         screenshotRetentionDays: num(fd, "screenshotRetentionDays"),
         allowWebCheckIn: bool(fd, "allowWebCheckIn"),
         autoCheckoutIdleMin: num(fd, "autoCheckoutIdleMin"),
+        autoStopAtTarget: bool(fd, "autoStopAtTarget"),
       };
     case "payroll":
-      return { overtimeMultiplier: num(fd, "overtimeMultiplier") };
+      return {
+        overtimeMultiplier: num(fd, "overtimeMultiplier"),
+        dailyShortfall: bool(fd, "dailyShortfall"),
+        dailyShortfallFrom: str(fd, "dailyShortfallFrom") || current.payroll.dailyShortfallFrom,
+      };
     case "alerts":
       return {
         absence: bool(fd, "absence"),
