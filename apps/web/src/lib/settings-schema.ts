@@ -19,7 +19,7 @@ export const settingsSchema = z.object({
       blurScreenshots: z.boolean().default(false),
       screenshotRetentionDays: z.number().int().min(1).max(365).default(30),
       allowWebCheckIn: z.boolean().default(true),
-      autoCheckoutIdleMin: z.number().int().min(5).max(240).default(30),
+      autoCheckoutIdleMin: z.number().int().min(1).max(240).default(30),
       /** لما الموظف يكمّل ساعاته المطلوبة في اليوم، الحضور بيتقفل لوحده */
       autoStopAtTarget: z.boolean().default(true),
     })
