@@ -7,7 +7,7 @@ import { audit } from "@/lib/audit";
 import { requireAdmin, requireEmployee } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
 import { CASUAL_MAX_PER_MONTH, casualMonthOverflow, monthLabel } from "@/lib/leave-rules";
-import { dateKeyOf, LEAVE_LABEL, LEAVE_TYPES, leaveBalances, leaveWorkingDays } from "@/lib/leaves";
+import { BALANCE_TYPES, dateKeyOf, LEAVE_LABEL, LEAVE_TYPES, leaveBalances, leaveWorkingDays } from "@/lib/leaves";
 import { sendMail } from "@/lib/mail";
 import { getSettings } from "@/lib/settings";
 import { addDays, toDateKey } from "@/lib/time";
@@ -57,7 +57,7 @@ async function checkLeaveRules(
     const others = await db.leaveRequest.findMany({
       where: {
         userId,
-        type: "CASUAL",
+        type: { in: [...BALANCE_TYPES] },
         status: { in: ["PENDING", "APPROVED"] },
         startDate: { lt: new Date(`${monthEnd}T00:00:00Z`) },
         endDate: { gte: new Date(`${monthStart}T00:00:00Z`) },
@@ -67,7 +67,7 @@ async function checkLeaveRules(
     const over = casualMonthOverflow(workingDays, existing);
     if (over) {
       const left = over.available > 0 ? `فاضل ${over.available} يوم بس` : "الـ 3 أيام بتوع الشهر خلصوا";
-      return { error: `مينفعش أكتر من ${CASUAL_MAX_PER_MONTH} أيام عارضة في الشهر. ${monthLabel(over.month)}: ${left}` };
+      return { error: `مينفعش أكتر من ${CASUAL_MAX_PER_MONTH} أيام إجازة في الشهر. ${monthLabel(over.month)}: ${left}` };
     }
 
     const balance = (await leaveBalances(userId, Number(startDate.slice(0, 4)))).find((b) => b.type === type)!;
@@ -85,9 +85,8 @@ export async function requestLeave(_: ActionState, formData: FormData): Promise<
 
   const { general } = await getSettings();
   const today = toDateKey(new Date(), general.timezone);
-  // الإجازة المرضية ممكن تتسجل بعد ما تحصل (لحد 30 يوم)، الباقي من النهارده
-  const earliest = type === "SICK" ? addDays(today, -30) : today;
-  if (startDate < earliest) return { fieldErrors: { startDate: [type === "SICK" ? "مينفعش أقدم من 30 يوم" : "مينفعش تاريخ فات"] } };
+  // عارضة/مرضية: ممكن تتسجل بعد ما تحصل (طوارئ أو مرض) لحد 30 يوم
+  if (startDate < addDays(today, -30)) return { fieldErrors: { startDate: ["مينفعش أقدم من 30 يوم"] } };
   if (endDate > addDays(today, 366)) return { fieldErrors: { endDate: ["التاريخ بعيد جدًا"] } };
 
   const checked = await checkLeaveRules(user.id, type, startDate, endDate, "employee");
