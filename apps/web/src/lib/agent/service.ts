@@ -185,7 +185,8 @@ export async function buildState(userId: string, now = new Date()): Promise<Agen
     consentRequired: !user.monitoringConsentAt,
     config: {
       dailyHours: p ? Number(p.dailyHours) : a.defaultDailyHours,
-      idleThresholdMin: p?.idleThresholdMin ?? a.idleThresholdMin,
+      // البرنامج بيلاحظ الخمول بعد حد الخمول بس، فلو الانصراف التلقائي أقصر منه، الحد بينزل له
+      idleThresholdMin: Math.min(p?.idleThresholdMin ?? a.idleThresholdMin, a.autoCheckoutIdleMin),
       autoCheckoutIdleMin: a.autoCheckoutIdleMin,
       screenshotIntervalMin: p?.screenshotIntervalMin ?? a.screenshotIntervalMin,
       blurScreenshots: p?.blurScreenshots ?? a.blurScreenshots,

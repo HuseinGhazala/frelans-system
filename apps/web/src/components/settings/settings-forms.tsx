@@ -80,8 +80,8 @@ export function AttendanceForm({ s }: { s: Settings["attendance"] }) {
         <Field label="حذف اللقطات بعد (يوم)" htmlFor="screenshotRetentionDays">
           {numInput("screenshotRetentionDays", s.screenshotRetentionDays, { min: 1, max: 365 })}
         </Field>
-        <Field label="انصراف تلقائي بعد خمول (دقيقة)" htmlFor="autoCheckoutIdleMin">
-          {numInput("autoCheckoutIdleMin", s.autoCheckoutIdleMin, { min: 5, max: 240 })}
+        <Field label="انصراف تلقائي بعد خمول (دقيقة)" htmlFor="autoCheckoutIdleMin" hint="لو أقل من حد الخمول، حد الخمول بينزل له تلقائي">
+          {numInput("autoCheckoutIdleMin", s.autoCheckoutIdleMin, { min: 1, max: 240 })}
         </Field>
       </div>
       <div className="divide-y divide-border">
