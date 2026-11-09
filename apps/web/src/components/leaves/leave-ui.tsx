@@ -8,35 +8,34 @@ import { Field, Input, Select } from "@/components/ui/field";
 import { FormMessage } from "@/components/ui/form-message";
 import { useFormAction } from "@/components/ui/use-form-action";
 
-const TYPES = [
-  ["CASUAL", "عارضة"],
-  ["SICK", "مرضية"],
-  ["UNPAID", "بدون مرتب"],
-] as const;
+function addDaysKey(key: string, days: number) {
+  const d = new Date(`${key}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** نوع واحد بس: عارضة/مرضية (12 يوم في السنة، 3 في الشهر بالكتير) */
+const LEAVE_HINT = "عارضة أو مرضية — 12 يوم في السنة، وبحد أقصى 3 أيام في الشهر";
 
 export function LeaveRequestForm({ today }: { today: string }) {
   const [state, action, pending] = useFormAction(requestLeave);
   const ref = useRef<HTMLFormElement>(null);
-  const [type, setType] = useState("CASUAL");
+  // ممكن تتسجل بأثر رجعي لحد 30 يوم (طوارئ أو مرض)
+  const minDate = addDaysKey(today, -30);
   useEffect(() => {
     if (state?.success) ref.current?.reset();
   }, [state]);
   const e = state?.fieldErrors ?? {};
   return (
     <form ref={ref} onSubmit={action} className="space-y-4 p-5">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="نوع الإجازة" htmlFor="type" error={e.type} hint={type === "CASUAL" ? "العارضة: بحد أقصى 3 أيام في الشهر" : undefined}>
-          <Select id="type" name="type" value={type} onChange={(ev) => setType(ev.target.value)}>
-            {TYPES.map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </Select>
-        </Field>
+      <p className="text-sm text-muted">{LEAVE_HINT}. ينفع تسجلها بعد ما تحصل لحد 30 يوم.</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <input type="hidden" name="type" value="CASUAL" />
         <Field label="من" htmlFor="startDate" error={e.startDate}>
-          <Input id="startDate" name="startDate" type="date" min={type === "SICK" ? undefined : today} required />
+          <Input id="startDate" name="startDate" type="date" min={minDate} required />
         </Field>
         <Field label="إلى" htmlFor="endDate" error={e.endDate}>
-          <Input id="endDate" name="endDate" type="date" min={type === "SICK" ? undefined : today} required />
+          <Input id="endDate" name="endDate" type="date" min={minDate} required />
         </Field>
       </div>
       <Field label="السبب (اختياري)" htmlFor="reason">
@@ -88,7 +87,6 @@ export function ReviewLeave({ id }: { id: string }) {
 export function AdminLeaveForm({ employees, today }: { employees: { id: string; name: string }[]; today: string }) {
   const [state, action, pending] = useFormAction(adminCreateLeave);
   const ref = useRef<HTMLFormElement>(null);
-  const [type, setType] = useState("CASUAL");
   useEffect(() => {
     if (state?.success) ref.current?.reset();
   }, [state]);
@@ -106,13 +104,8 @@ export function AdminLeaveForm({ employees, today }: { employees: { id: string; 
             ))}
           </Select>
         </Field>
-        <Field label="نوع الإجازة" htmlFor="admin-type" error={e.type} hint={type === "CASUAL" ? "العارضة: بحد أقصى 3 أيام في الشهر ومن الرصيد" : undefined}>
-          <Select id="admin-type" name="type" value={type} onChange={(ev) => setType(ev.target.value)}>
-            {TYPES.map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </Select>
-        </Field>
+        <input type="hidden" name="type" value="CASUAL" />
+        <p className="self-end pb-2 text-xs text-muted">{LEAVE_HINT}، ومن رصيد الموظف.</p>
         <Field label="من" htmlFor="admin-start" error={e.startDate}>
           <Input id="admin-start" name="startDate" type="date" defaultValue={today} required />
         </Field>

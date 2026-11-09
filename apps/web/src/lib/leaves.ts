@@ -8,7 +8,7 @@ import { weekdayOf, type DateKey } from "./time";
 
 export const LEAVE_LABEL: Record<LeaveType, string> = {
   ANNUAL: "سنوية",
-  CASUAL: "عارضة",
+  CASUAL: "عارضة / مرضية",
   SICK: "مرضية",
   UNPAID: "بدون مرتب",
 };
@@ -17,7 +17,9 @@ export const LEAVE_LABEL: Record<LeaveType, string> = {
  * الأنواع اللي الموظف يقدر يطلبها. السنوية اتلغت (نوفمبر 2026) بقرار صاحب الشغل:
  * الرصيد الوحيد بقى العارضة. النوع ANNUAL لسه في قاعدة البيانات عشان أي طلب قديم يفضل يتعرض.
  */
-export const LEAVE_TYPES = ["CASUAL", "SICK", "UNPAID"] as const satisfies readonly LeaveType[];
+export const LEAVE_TYPES = ["CASUAL"] as const satisfies readonly LeaveType[];
+/** الأنواع اللي بتتخصم من رصيد الـ 12 يوم: العارضة/المرضية (المرضية القديمة اتدمجت فيها نوفمبر 2026) */
+export const BALANCE_TYPES: readonly LeaveType[] = ["CASUAL", "SICK"];
 
 export const LEAVE_STATUS_LABEL = {
   PENDING: "قيد المراجعة",
@@ -64,7 +66,7 @@ export async function approvedLeaveDays(userIds: string[], fromKey: DateKey, toK
 
 export type Balance = { type: LeaveType; allowance: number | null; used: number; pending: number; remaining: number | null };
 
-/** رصيد الإجازات لموظف في سنة (العارضة ليها رصيد؛ المرضية وبدون مرتب بتتعد بس) */
+/** رصيد الإجازات لموظف في سنة: نوع واحد (عارضة/مرضية) برصيد سنوي، والمرضية القديمة بتتحسب منه */
 export async function leaveBalances(userId: string, year: number): Promise<Balance[]> {
   const from = `${year}-01-01`;
   const to = `${year}-12-31`;
@@ -87,9 +89,10 @@ export async function leaveBalances(userId: string, year: number): Promise<Balan
     SICK: null,
     UNPAID: null,
   };
+  const inBalance = (t: LeaveType, type: LeaveType) => (type === "CASUAL" ? BALANCE_TYPES.includes(t) : t === type);
   return LEAVE_TYPES.map((type) => {
-    const used = rows.filter((r) => r.type === type && r.status === "APPROVED").reduce((t, r) => t + count(r), 0);
-    const pending = rows.filter((r) => r.type === type && r.status === "PENDING").reduce((t, r) => t + count(r), 0);
+    const used = rows.filter((r) => inBalance(r.type, type) && r.status === "APPROVED").reduce((t, r) => t + count(r), 0);
+    const pending = rows.filter((r) => inBalance(r.type, type) && r.status === "PENDING").reduce((t, r) => t + count(r), 0);
     const a = allowance[type];
     return { type, allowance: a, used, pending, remaining: a == null ? null : a - used };
   });
