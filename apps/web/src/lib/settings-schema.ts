@@ -20,11 +20,19 @@ export const settingsSchema = z.object({
       screenshotRetentionDays: z.number().int().min(1).max(365).default(30),
       allowWebCheckIn: z.boolean().default(true),
       autoCheckoutIdleMin: z.number().int().min(5).max(240).default(30),
+      /** لما الموظف يكمّل ساعاته المطلوبة في اليوم، الحضور بيتقفل لوحده */
+      autoStopAtTarget: z.boolean().default(true),
     })
     .prefault({}),
   payroll: z
     .object({
       overtimeMultiplier: z.number().min(1).max(5).default(1.5),
+      /**
+       * الساعات الناقصة بتتخصم كل يوم لوحده (اليوم الناقص ما بيتعوضش بيوم زيادة).
+       * بيتطبق من dailyShortfallFrom؛ الأيام اللي قبله بتفضل بالحساب الشهري الصافي.
+       */
+      dailyShortfall: z.boolean().default(true),
+      dailyShortfallFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default("2026-11-09"),
     })
     .prefault({}),
   alerts: z

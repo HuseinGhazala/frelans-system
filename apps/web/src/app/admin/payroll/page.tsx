@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: "المرتبات" };
 
 export default async function PayrollPage({ searchParams }: PageProps<"/admin/payroll">) {
   const sp = await searchParams;
-  const { general } = await getSettings();
+  const { general, payroll: payrollSettings } = await getSettings();
   const monthParam = typeof sp.month === "string" && /^\d{4}-\d{2}$/.test(sp.month) ? sp.month : toDateKey(new Date(), general.timezone).slice(0, 7);
   const [year, month] = monthParam.split("-").map(Number);
   const monthLabel = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, 1)));
@@ -86,7 +86,10 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
             <StatCard label="الصافي" value={money(sum("net"))} />
           </div>
           <p className="mb-4 rounded-lg bg-info-soft px-4 py-3 text-sm text-info">
-            الحساب شهري: الأيام الناقصة بتتعوض بالأيام الزيادة. الساعات الزيادة ما بتتحسبش إضافي إلا بعد موافقتك.
+            {payrollSettings.dailyShortfall
+              ? `الساعات الناقصة بتتخصم كل يوم لوحده من ${payrollSettings.dailyShortfallFrom} (اليوم الناقص ما بيتعوضش بيوم زيادة، والأيام اللي قبلها بالحساب الشهري).`
+              : "الحساب شهري: الأيام الناقصة بتتعوض بالأيام الزيادة."}{" "}
+            الساعات الزيادة ما بتتحسبش إضافي إلا بعد موافقتك.
             {pendingOvertime > 0 && !locked && ` — في ${pendingOvertime} موظف عندهم إضافي مقترح مستني موافقتك.`}
             {lateTaskStaff > 0 && !locked && ` — في ${lateTaskStaff} موظف تاسكات عندهم تسليمات متأخرة: حدد الخصم من عمود التعديلات.`}
             {" "}موظفين التاسكات مرتبهم ثابت، والخصم على التأخير بتحدده انت.

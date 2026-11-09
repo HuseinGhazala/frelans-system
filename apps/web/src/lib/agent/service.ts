@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { closeStaleAgentSessions, workedTodayByUser } from "@/lib/attendance";
+import { closeStaleAgentSessions, dayTarget, workedTodayByUser } from "@/lib/attendance";
 import { announcePresence } from "@/lib/chat/presence";
 import { getSettings } from "@/lib/settings";
 import type { ActivityMinuteInput, AgentEvent, AgentState } from "./protocol";
@@ -83,6 +83,8 @@ async function applyEvent(userId: string, deviceId: string, event: AgentEvent, n
   switch (event.type) {
     case "check_in": {
       if (open?.source === "AGENT" && open.deviceId === deviceId) return false; // مكرر
+      // كمّل ساعاته المطلوبة النهارده والانصراف التلقائي شغال → مفيش حضور تاني
+      if (!open && (await dayTarget(userId, now)).done) return false;
       // لو في جلسة مفتوحة (من الموقع أو جهاز تاني) نقفلها ونبدأ جلسة البرنامج
       if (open) await closeSession(open.id, open.startedAt, at, "MANUAL");
       try {
@@ -168,10 +170,11 @@ export async function saveMinutes(userId: string, minutes: ActivityMinuteInput[]
 export async function buildState(userId: string, now = new Date()): Promise<AgentState> {
   await closeStaleAgentSessions(now);
   const settings = await getSettings();
-  const [user, open, worked] = await Promise.all([
+  const [user, open, worked, target] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: userId }, include: { profile: true } }),
     openSessionOf(userId),
     workedTodayByUser([userId], settings.general.timezone, now),
+    dayTarget(userId, now),
   ]);
   const p = user.profile;
   const a = settings.attendance;
@@ -192,5 +195,6 @@ export async function buildState(userId: string, now = new Date()): Promise<Agen
       ? { id: open.id, source: open.source, startedAt: open.startedAt.toISOString(), breakStartedAt: open.breaks[0]?.startedAt.toISOString() ?? null }
       : null,
     todayWorkedMs: worked.get(userId) ?? 0,
+    dayComplete: target.done,
   };
 }

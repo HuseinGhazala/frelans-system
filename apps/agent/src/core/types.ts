@@ -14,6 +14,8 @@ export type ServerState = {
   status: "WORKING" | "ON_BREAK" | "OFFLINE";
   session: { id: string; source: "AGENT" | "WEB"; startedAt: string; breakStartedAt: string | null } | null;
   todayWorkedMs: number;
+  /** كمّل ساعاته المطلوبة النهارده والانصراف التلقائي شغال (سيرفر 2026-11 وأحدث) */
+  dayComplete?: boolean;
 };
 
 /** اللي الواجهة بتعرضه */

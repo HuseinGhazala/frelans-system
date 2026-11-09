@@ -76,7 +76,13 @@ export default async function EmployeeHome() {
             renderedAt={now.getTime()}
             requiredMs={dailyMs}
             allowWeb={settings.attendance.allowWebCheckIn}
+            autoStop={settings.attendance.autoStopAtTarget}
           />
+          {settings.attendance.autoStopAtTarget && !open && (today.get(user.id) ?? 0) >= dailyMs && (
+            <p className="mt-4 rounded-lg bg-success-soft px-4 py-3 text-sm text-success">
+              كمّلت ساعاتك المطلوبة النهارده ({formatDuration(dailyMs)}) واتسجل انصرافك تلقائي. شكرًا! تقدر تسجل حضور تاني بكرة.
+            </p>
+          )}
         </div>
       </Card>
 
@@ -86,7 +92,7 @@ export default async function EmployeeHome() {
           label={remaining > 0 ? "فاضل عليك" : "زيادة"}
           value={formatDuration(Math.abs(remaining))}
           tone={remaining > 0 ? "default" : "success"}
-          hint="اليوم الناقص بيتعوض بيوم زيادة"
+          hint={settings.payroll.dailyShortfall ? "الساعات الناقصة بتتخصم كل يوم لوحده (من غير تعويض)" : "اليوم الناقص بيتعوض بيوم زيادة"}
         />
         <StatCard label="أيام العمل في الشهر" value={summary.workingDays.length} hint={`الإجازة الأسبوعية مش محسوبة`} />
       </div>

@@ -1,6 +1,7 @@
 import "server-only";
 import type { LeaveType } from "@/generated/prisma/enums";
 import { db } from "./db";
+import { shortfallAndSurplus } from "./hours-balance";
 import { approvedLeaveDays } from "./leaves";
 import { getSettings } from "./settings";
 import { addDays, dayRange, daysInMonth, HOUR_MS, startOfDay, toDateKey, weekdayOf, workedMs, type DateKey } from "./time";
@@ -122,6 +123,9 @@ export type RangeSummary = {
   /** ساعات الإجازات المدفوعة اللي بتتحسب كشغل */
   paidLeaveMs: number;
   unpaidLeaveDays: number;
+  /** الناقص والزيادة حسب إعداد المرتبات (يومي من تاريخ معين، أو شهري صافي) */
+  shortMs: number;
+  surplusMs: number;
 };
 
 /** المطلوب مقابل الفعلي لكل موظف في فترة (من يوم لحد يوم، شاملين) */
@@ -147,10 +151,23 @@ export async function rangeSummary(userIds: string[], fromKey: DateKey, toKey: D
     // يوم الإجازة المدفوعة بيتحسب كأنه اشتغل ساعاته (من غير ما يتحسب مرتين لو اشتغل فيه)
     let paidLeaveMs = 0;
     let unpaidLeaveDays = 0;
+    const paidLeavePerDay = new Map<DateKey, number>();
     for (const [k, type] of leaveDays) {
       if (type === "UNPAID") unpaidLeaveDays++;
-      else paidLeaveMs += Math.max(0, dailyMs - (perDay.get(k) ?? 0));
+      else {
+        const credit = Math.max(0, dailyMs - (perDay.get(k) ?? 0));
+        paidLeaveMs += credit;
+        paidLeavePerDay.set(k, credit);
+      }
     }
+    const { shortMs, surplusMs } = shortfallAndSurplus({
+      days,
+      workingDays: working,
+      dailyMs,
+      workedPerDay: perDay,
+      paidLeavePerDay,
+      dailyFrom: settings.payroll.dailyShortfall ? settings.payroll.dailyShortfallFrom : null,
+    });
     return {
       userId: u.id,
       dailyMs,
@@ -161,6 +178,8 @@ export async function rangeSummary(userIds: string[], fromKey: DateKey, toKey: D
       leaveDays,
       paidLeaveMs,
       unpaidLeaveDays,
+      shortMs,
+      surplusMs,
     };
   });
 }
@@ -172,4 +191,51 @@ export async function monthSummary(userId: string, year: number, month: number, 
   const days = daysInMonth(year, month);
   const [summary] = await rangeSummary([userId], days[0], days[days.length - 1], now);
   return summary;
+}
+
+// ───────────── الانصراف التلقائي لما الموظف يكمّل ساعاته ─────────────
+
+/** الساعات المطلوبة النهارده والمتعمل منها، وهل خلص (الإعداد شغال + موظف بالساعات) */
+export async function dayTarget(userId: string, now = new Date()) {
+  const settings = await getSettings();
+  const profile = await db.employeeProfile.findUnique({ where: { userId }, select: { workMode: true, dailyHours: true } });
+  const dailyMs = Number(profile?.dailyHours ?? settings.attendance.defaultDailyHours) * HOUR_MS;
+  const enabled = settings.attendance.autoStopAtTarget && profile?.workMode !== "TASKS";
+  if (!enabled) return { enabled, dailyMs, workedMs: 0, done: false };
+  const worked = (await workedTodayByUser([userId], settings.general.timezone, now)).get(userId) ?? 0;
+  return { enabled, dailyMs, workedMs: worked, done: worked >= dailyMs };
+}
+
+/**
+ * لو الموظف كمّل ساعاته المطلوبة النهارده والحضور لسه مفتوح: بيتقفل عند اللحظة اللي كمّل فيها بالظبط
+ * (سبب الانصراف DAY_END). بيرجّع true لو قفل.
+ */
+export async function stopIfTargetReached(userId: string, now = new Date()): Promise<boolean> {
+  const open = await getOpenSession(userId);
+  if (!open) return false;
+  const t = await dayTarget(userId, now);
+  if (!t.done) return false;
+  const over = t.workedMs - t.dailyMs;
+  let endAt = new Date(Math.max(open.startedAt.getTime(), now.getTime() - over));
+  const openBreak = open.breaks[0];
+  if (openBreak && openBreak.startedAt > endAt) endAt = openBreak.startedAt;
+  const closed = await db.$transaction(async (tx) => {
+    const r = await tx.workSession.updateMany({ where: { id: open.id, endedAt: null }, data: { endedAt: endAt, endReason: "DAY_END" } });
+    if (r.count === 0) return false;
+    await tx.break.updateMany({ where: { sessionId: open.id, endedAt: null }, data: { endedAt: endAt } });
+    return true;
+  });
+  if (closed) {
+    const { announcePresence } = await import("./chat/presence");
+    void announcePresence(userId).catch((err) => console.error("announcePresence failed", err));
+  }
+  return closed;
+}
+
+/** كل دقيقة (lib/jobs): يقفل حضور أي حد كمّل ساعاته — بيغطي حضور الموقع والبرنامج لو مش بيبعت */
+export async function stopCompletedSessions(now = new Date()) {
+  const { attendance } = await getSettings();
+  if (!attendance.autoStopAtTarget) return;
+  const open = await db.workSession.findMany({ where: { endedAt: null }, select: { userId: true } });
+  for (const { userId } of open) await stopIfTargetReached(userId, now);
 }

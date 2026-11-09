@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireEmployee } from "@/lib/auth/dal";
-import { getOpenSession } from "@/lib/attendance";
+import { dayTarget, getOpenSession } from "@/lib/attendance";
 import { announcePresence } from "@/lib/chat/presence";
 import { getSettings } from "@/lib/settings";
+import { formatDuration } from "@/lib/time";
 import type { ActionState } from "./types";
 
 const isUniqueViolation = (e: unknown) => (e as { code?: string })?.code === "P2002";
@@ -26,6 +27,8 @@ export async function checkIn(): Promise<ActionState> {
   if (profile?.workMode === "TASKS") return { error: "حسابك بنظام التاسكات — مفيش تسجيل حضور" };
   if (!settings.attendance.allowWebCheckIn) return { error: "تسجيل الحضور من الموقع متوقف. استخدم برنامج الديسكتوب." };
   if (await getOpenSession(user.id)) return { error: "انت مسجل حضور بالفعل" };
+  const target = await dayTarget(user.id);
+  if (target.done) return { error: `كمّلت ساعاتك المطلوبة النهارده (${formatDuration(target.dailyMs)}) — مفيش تسجيل حضور تاني النهارده` };
   try {
     await db.workSession.create({ data: { userId: user.id, source: "WEB", startedAt: new Date() } });
   } catch (e) {

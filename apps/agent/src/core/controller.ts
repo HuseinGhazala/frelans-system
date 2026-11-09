@@ -300,6 +300,11 @@ export class Controller {
 
   async checkIn() {
     if (this.localStatus !== "OFFLINE" && this.state?.session?.source !== "WEB") return;
+    // كمّل ساعاته المطلوبة النهارده → السيرفر مش هيقبل حضور تاني
+    if (this.state?.dayComplete && this.localStatus === "OFFLINE") {
+      this.platform.notify("كمّلت ساعاتك النهارده", `خلصت الساعات المطلوبة (${this.state.config.dailyHours} ساعات). تقدر تسجل حضور تاني بكرة.`);
+      return;
+    }
     this.idle.reset();
     this.rebase(this.liveWorked());
     this.push("check_in");
@@ -543,7 +548,11 @@ export class Controller {
       if (this.idle.currentIdleSince !== null) this.baseAt = Math.max(this.idle.currentIdleSince, this.baseAt);
       this.setTracking(state.status === "WORKING" && state.session?.source === "AGENT");
       if (wasTracking && !this.tracking && state.status === "OFFLINE") {
-        this.platform.notify("تم تسجيل الانصراف", "الحضور اتقفل من الموقع أو من المدير.");
+        if (state.dayComplete) {
+          this.platform.notify("كمّلت ساعاتك النهارده 👏", `خلصت الساعات المطلوبة (${state.config.dailyHours} ساعات) واتسجل انصرافك تلقائي.`);
+        } else {
+          this.platform.notify("تم تسجيل الانصراف", "الحضور اتقفل من الموقع أو من المدير.");
+        }
       }
     }
   }

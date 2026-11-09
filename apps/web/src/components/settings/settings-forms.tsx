@@ -87,6 +87,12 @@ export function AttendanceForm({ s }: { s: Settings["attendance"] }) {
       <div className="divide-y divide-border">
         <Toggle name="blurScreenshots" defaultChecked={s.blurScreenshots} label="تشويش السكرين شوت" hint="التشويش بيتم على جهاز الموظف قبل الرفع" />
         <Toggle name="allowWebCheckIn" defaultChecked={s.allowWebCheckIn} label="السماح بتسجيل الحضور من الموقع" hint="جلسة الموقع بتسجل الوقت بس من غير تتبع نشاط" />
+        <Toggle
+          name="autoStopAtTarget"
+          defaultChecked={s.autoStopAtTarget}
+          label="انصراف تلقائي لما الموظف يكمّل ساعاته"
+          hint="أول ما يكمّل الساعات المطلوبة في اليوم، الحضور بيتقفل لوحده ويوصله تنبيه، ومايقدرش يسجل حضور تاني في نفس اليوم"
+        />
       </div>
     </SectionForm>
   );
@@ -94,9 +100,20 @@ export function AttendanceForm({ s }: { s: Settings["attendance"] }) {
 
 export function PayrollForm({ s }: { s: Settings["payroll"] }) {
   return (
-    <SectionForm section="payroll" title="المرتبات" description="الحساب شهري صافي، والإضافي بيتحسب بعد موافقتك">
+    <SectionForm section="payroll" title="المرتبات" description="الإضافي بيتحسب بعد موافقتك">
       <Field label="معامل الإضافي" htmlFor="overtimeMultiplier" hint="سعر ساعة الإضافي = سعر الساعة × المعامل" className="max-w-xs">
         {numInput("overtimeMultiplier", s.overtimeMultiplier, { min: 1, max: 5, step: 0.05 })}
+      </Field>
+      <div className="divide-y divide-border">
+        <Toggle
+          name="dailyShortfall"
+          defaultChecked={s.dailyShortfall}
+          label="الساعات الناقصة بتتخصم كل يوم لوحده (من غير تعويض)"
+          hint="لو مقفول: الحساب شهري صافي، واليوم الناقص بيتعوض بيوم زيادة"
+        />
+      </div>
+      <Field label="من تاريخ" htmlFor="dailyShortfallFrom" hint="الأيام اللي قبل التاريخ ده بتفضل بالحساب الشهري" className="max-w-xs">
+        <Input id="dailyShortfallFrom" name="dailyShortfallFrom" type="date" defaultValue={s.dailyShortfallFrom} dir="ltr" />
       </Field>
     </SectionForm>
   );

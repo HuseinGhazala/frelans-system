@@ -54,7 +54,8 @@ export default async function EmployeePage({ params, searchParams }: PageProps<"
   ]);
   const dailyMs = Number(employee.profile?.dailyHours ?? settings.attendance.defaultDailyHours) * HOUR_MS;
   const seenFmt = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { dateStyle: "medium", timeStyle: "short", timeZone: tz });
-  const diff = summary.workedMs + summary.paidLeaveMs - summary.requiredMs;
+  // الزيادة ناقص الناقص (بقاعدة الخصم اليومي لو شغالة)
+  const diff = summary.surplusMs - summary.shortMs;
   const monthParam = typeof sp.month === "string" && /^\d{4}-\d{2}$/.test(sp.month) ? sp.month : today.slice(0, 7);
   const p = employee.profile;
   const monthName = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, 1)));

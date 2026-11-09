@@ -3,7 +3,7 @@ import { dayActivity } from "./activity";
 import { createAlert, emailAdmins } from "./alerts";
 import { sendUnreadChatEmails } from "./chat/email";
 import { deleteExpiredChatAttachments } from "./chat/retention";
-import { closeStaleAgentSessions, rangeSummary } from "./attendance";
+import { closeStaleAgentSessions, rangeSummary, stopCompletedSessions } from "./attendance";
 import { db } from "./db";
 import { deleteExpiredScreenshots } from "./screenshots";
 import { getSettings } from "./settings";
@@ -179,6 +179,7 @@ export async function runScheduledJobs(now = new Date()) {
     const yesterday = addDays(today, -1);
 
     await closeStaleAgentSessions(now);
+    await stopCompletedSessions(now).catch((err) => console.error("auto stop failed", err));
     await checkLongIdle(now);
     await checkOverdueTasks(now);
     await sendUnreadChatEmails(now).catch((err) => console.error("chat emails failed", err));

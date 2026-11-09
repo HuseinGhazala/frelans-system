@@ -52,6 +52,9 @@ export type PayrollInput = {
   approvedOvertimeHours: number;
   overtimeMultiplier: number;
   adjustments: Adjustment[];
+  /** لو متحدد (حساب يومي): الناقص والزيادة جاهزين بدل الحساب الشهري الصافي */
+  shortHours?: number;
+  surplusHours?: number;
 };
 
 
@@ -60,8 +63,8 @@ export function computePayroll(i: PayrollInput) {
   const hourlyRate = monthHours > 0 ? i.monthlySalary / monthHours : 0;
   const baseSalary = hourlyRate * i.requiredHours;
   const credited = i.workedHours + i.paidLeaveHours;
-  const shortHours = Math.max(0, i.requiredHours - credited);
-  const surplusHours = Math.max(0, credited - i.requiredHours);
+  const shortHours = i.shortHours ?? Math.max(0, i.requiredHours - credited);
+  const surplusHours = i.surplusHours ?? Math.max(0, credited - i.requiredHours);
   const approvedOvertimeHours = Math.min(Math.max(0, i.approvedOvertimeHours), surplusHours);
   const deduction = shortHours * hourlyRate;
   const overtimePay = approvedOvertimeHours * hourlyRate * i.overtimeMultiplier;
